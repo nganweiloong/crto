@@ -212,9 +212,10 @@ section.sec.collapsed{border-bottom:1px solid var(--line);margin-bottom:8px}
 <li class="lvl-3"><a href="#112-sharphound-and-bloodhound">11.2 SharpHound and BloodHound</a></li>
 <li class="lvl-3"><a href="#113-bloodhound-what-to-look-for">11.3 BloodHound: what to look for</a></li>
 <li class="lvl-3"><a href="#114-native-and-adsearch">11.4 Native and ADSearch</a></li>
-<li class="lvl-3"><a href="#115-the-high-value-findings">11.5 The high-value findings</a></li>
-<li class="lvl-3"><a href="#116-opsec-for-ad-reconnaissance">11.6 OPSEC for AD reconnaissance</a></li>
-<li class="lvl-3"><a href="#117-troubleshooting">11.7 Troubleshooting</a></li></ul>
+<li class="lvl-3"><a href="#115-ldapsearch-bof-and-bofhound">11.5 ldapsearch BOF and BofHound</a></li>
+<li class="lvl-3"><a href="#116-the-high-value-findings">11.6 The high-value findings</a></li>
+<li class="lvl-3"><a href="#117-opsec-for-ad-reconnaissance">11.7 OPSEC for AD reconnaissance</a></li>
+<li class="lvl-3"><a href="#118-troubleshooting">11.8 Troubleshooting</a></li></ul>
 </li>
 <li class="lvl-2"><a href="#12-kerberos-and-domain-escalation">12. Kerberos and domain escalation</a>
 <ul><li class="lvl-3"><a href="#121-kerberos-in-60-seconds">12.1 Kerberos in 60 seconds</a></li>
@@ -2962,7 +2963,190 @@ net group &quot;Domain Admins&quot; /domain
 nltest /domain_trusts /all_trusts
 setspn -T &lt;domain&gt; -Q */*
 </code></pre>
-<h3 id="115-the-high-value-findings">11.5 The high-value findings</h3>
+<h3 id="115-ldapsearch-bof-and-bofhound">11.5 ldapsearch BOF and BofHound</h3>
+<p><code>ldapsearch</code> runs LDAP from Beacon without loading PowerView or dropping SharpHound on a host, prints results as text, and that text can be parsed offline into BloodHound JSON with <strong>BofHound</strong>. It is the quietest way to get directory objects, and the only way to get a graph from a host where you cannot run a collector at all.</p>
+<pre><code class="language-text">ldapsearch &quot;&lt;filter&gt;&quot; --attributes &lt;attr1,attr2&gt;
+ldapsearch &quot;&lt;filter&gt;&quot; --attributes *,ntsecuritydescriptor     # ACL data for BofHound
+ldapsearch --base &quot;&lt;DN&gt;&quot; --scope base &quot;&lt;filter&gt;&quot; --attributes *
+</code></pre>
+<p><strong>Quote the filter.</strong> Bare <code>&amp;</code> and parentheses get mangled by the command parser.</p>
+<p><strong>Bit flags need a matching rule.</strong> <code>userAccountControl</code> packs every flag into one number, so you test a bit instead of comparing the whole value:</p>
+<pre><code class="language-text">userAccountControl:1.2.840.113556.1.4.803:=524288
+                    └── LDAP_MATCHING_RULE_BIT_AND ──┘
+</code></pre>
+<p><code>1.2.840.113556.1.4.803</code> is fixed and always means "bitwise AND, match if non-zero". The number after it is the flag under test. <code>:=</code> is required — <code>=</code> compares the entire value and will not match a partial bit.</p>
+<table>
+<thead>
+<tr>
+<th>Decimal</th>
+<th>Hex</th>
+<th>Flag</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2</td>
+<td><code>0x2</code></td>
+<td>ACCOUNTDISABLE</td>
+</tr>
+<tr>
+<td>32</td>
+<td><code>0x20</code></td>
+<td>PASSWD_NOTREQD</td>
+</tr>
+<tr>
+<td>4096</td>
+<td><code>0x1000</code></td>
+<td>WORKSTATION_TRUST_ACCOUNT</td>
+</tr>
+<tr>
+<td>8192</td>
+<td><code>0x2000</code></td>
+<td>SERVER_TRUST_ACCOUNT (DC)</td>
+</tr>
+<tr>
+<td>65536</td>
+<td><code>0x10000</code></td>
+<td>DONT_EXPIRE_PASSWORD</td>
+</tr>
+<tr>
+<td>524288</td>
+<td><code>0x80000</code></td>
+<td>TRUSTED_FOR_DELEGATION</td>
+</tr>
+<tr>
+<td>1048576</td>
+<td><code>0x100000</code></td>
+<td>NOT_DELEGATED (sensitive)</td>
+</tr>
+<tr>
+<td>4194304</td>
+<td><code>0x400000</code></td>
+<td>DONT_REQUIRE_PREAUTH</td>
+</tr>
+<tr>
+<td>16777216</td>
+<td><code>0x1000000</code></td>
+<td>TRUSTED_TO_AUTH_FOR_DELEGATION</td>
+</tr>
+</tbody>
+</table>
+<p>Other matching rules: <code>1.2.840.113556.1.4.804</code> (BIT_OR), <code>1.2.840.113556.1.4.1941</code> (IN_CHAIN — recursive group membership).</p>
+<p><strong>Collection — feed these to BofHound</strong></p>
+<pre><code class="language-text">ldapsearch &quot;(|(objectClass=domain)(objectClass=organizationalUnit)(objectClass=groupPolicyContainer))&quot; --attributes *,ntsecuritydescriptor
+ldapsearch &quot;(|(samAccountType=805306368)(samAccountType=805306369)(samAccountType=268435456))&quot; --attributes *,ntsecuritydescriptor
+</code></pre>
+<p>Domain, OUs, GPOs, users, computers, groups — the same object set a <code>DCOnly</code> SharpHound run produces. <code>--attributes *</code> does <strong>not</strong> include <code>nTSecurityDescriptor</code>; without it the graph has no ACL edges, which is where most of the attack paths live.</p>
+<p><strong>Delegation</strong></p>
+<pre><code class="language-text"># constrained — who may act as a user, toward where
+ldapsearch &quot;(&amp;(samAccountType=805306369)(msDS-AllowedToDelegateTo=*))&quot; --attributes samAccountName,msDS-AllowedToDelegateTo,userAccountControl
+
+# protocol transition (0x1000000)
+ldapsearch &quot;(&amp;(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=16777216))&quot; --attributes samAccountName
+
+# unconstrained — excludes DCs, which carry the bit by default
+ldapsearch &quot;(&amp;(samAccountType=805306369)(userAccountControl:1.2.840.113556.1.4.803:=524288)(!(userAccountControl:1.2.840.113556.1.4.803:=8192)))&quot; --attributes samAccountName,dNSHostName
+ldapsearch &quot;(&amp;(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=524288))&quot; --attributes samAccountName
+
+# sensitive and cannot be delegated — explains a silent S4U2self failure
+ldapsearch &quot;(&amp;(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=1048576))&quot; --attributes samAccountName
+
+# RBCD — not constrained delegation; read the attribute name carefully
+ldapsearch &quot;(msDS-AllowedToActOnBehalfOfOtherIdentity=*)&quot; --attributes samAccountName,msDS-AllowedToActOnBehalfOfOtherIdentity
+</code></pre>
+<p><strong>Roasting candidates</strong></p>
+<pre><code class="language-text"># Kerberoastable — enabled accounts only; check encryption types before requesting
+ldapsearch &quot;(&amp;(samAccountType=805306368)(servicePrincipalName=*)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))&quot; --attributes samAccountName,servicePrincipalName,msDS-SupportedEncryptionTypes,pwdLastSet
+
+# AS-REP roastable
+ldapsearch &quot;(&amp;(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=4194304)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))&quot; --attributes samAccountName,pwdLastSet
+
+# password never expires — weaker candidates, but cheap to check
+ldapsearch &quot;(&amp;(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=65536)(!(userAccountControl:1.2.840.113556.1.4.803:=2)))&quot; --attributes samAccountName,pwdLastSet
+</code></pre>
+<p>If <code>msDS-SupportedEncryptionTypes</code> rules out RC4, you get an AES ticket that will not crack in an exam window — decide that before you request, or use <code>/rc4opsec</code> / <code>/tgtdeleg</code> deliberately.</p>
+<p><strong>Privilege and identity</strong></p>
+<pre><code class="language-text"># AdminSDHolder-protected accounts
+ldapsearch &quot;(&amp;(samAccountType=805306368)(adminCount=1))&quot; --attributes samAccountName,memberOf
+
+# the privileged groups themselves
+ldapsearch &quot;(&amp;(samAccountType=268435456)(|(cn=Domain Admins)(cn=Enterprise Admins)(cn=Schema Admins)(cn=Administrators)(cn=Account Operators)(cn=Backup Operators)(cn=Server Operators)(cn=Print Operators)(cn=DNSAdmins)))&quot; --attributes cn,member
+
+# transitive membership of one group (IN_CHAIN)
+ldapsearch &quot;(&amp;(objectCategory=person)(memberOf:1.2.840.113556.1.4.1941:=CN=Domain Admins,CN=Users,DC=&lt;domain&gt;,DC=&lt;tld&gt;))&quot; --attributes samAccountName
+
+# SID history — cross-domain privilege that survives re-acl
+ldapsearch &quot;(sIDHistory=*)&quot; --attributes samAccountName,sIDHistory,objectClass
+
+# password not required
+ldapsearch &quot;(&amp;(samAccountType=805306368)(userAccountControl:1.2.840.113556.1.4.803:=32))&quot; --attributes samAccountName
+ldapsearch &quot;(&amp;(objectClass=computer)(userAccountControl:1.2.840.113556.1.4.803:=32))&quot; --attributes samAccountName
+</code></pre>
+<p><strong>Environment facts</strong></p>
+<pre><code class="language-text"># domain object — machine account quota (RBCD / machine accounts), functional level, ACLs
+ldapsearch &quot;(objectClass=domain)&quot; --attributes name,objectSid,ms-DS-MachineAccountQuota,msDS-Behavior-Version,ntsecuritydescriptor
+
+# domain controllers
+ldapsearch &quot;(&amp;(objectClass=computer)(userAccountControl:1.2.840.113556.1.4.803:=8192))&quot; --attributes samAccountName,dNSHostName
+
+# trusts
+ldapsearch &quot;(objectClass=trustedDomain)&quot; --attributes name,trustDirection,trustAttributes,trustPartner
+
+# LAPS (legacy and Windows LAPS 2023)
+ldapsearch &quot;(ms-Mcs-AdmPwd=*)&quot; --attributes samAccountName,ms-Mcs-AdmPwd,ms-Mcs-AdmPwdExpirationTime
+ldapsearch &quot;(msLAPS-Password=*)&quot; --attributes samAccountName,msLAPS-Password
+
+# gMSA
+ldapsearch &quot;(objectClass=msDS-GroupManagedServiceAccount)&quot; --attributes samAccountName,msDS-ManagedPasswordInterval
+
+# descriptions — passwords get pasted here
+ldapsearch &quot;(&amp;(objectClass=computer)(description=*))&quot; --attributes samAccountName,description
+</code></pre>
+<p><strong>ADCS (if you reach it)</strong></p>
+<pre><code class="language-text">ldapsearch &quot;(objectClass=pKIEnrollmentService)&quot; --attributes cn,dNSHostName,certificateTemplates
+ldapsearch &quot;(objectClass=msPKI-Enterprise-Oid)&quot; --attributes cn,msPKI-Cert-Template-OID,msPKI-Certificate-Name-Flag,msPKI-Enrollment-Flag,msPKI-RA-Signature,pKIExtendedKeyUsage
+</code></pre>
+<p><strong>BofHound</strong></p>
+<pre><code class="language-text"># parse a directory of BOF logs into BloodHound JSON, then upload the output folder
+bofhound -i logs/ -o bh-output
+</code></pre>
+<table>
+<thead>
+<tr>
+<th>Symptom</th>
+<th>Cause</th>
+<th>Fix</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Graph has objects but no paths</td>
+<td>No <code>nTSecurityDescriptor</code></td>
+<td>Re-query with <code>--attributes *,ntsecuritydescriptor</code></td>
+</tr>
+<tr>
+<td>LAPS or gMSA password is empty</td>
+<td>You lack read rights</td>
+<td>Test as a principal that should have them; empty does not mean absent</td>
+</tr>
+<tr>
+<td>Every DC appears "unconstrained"</td>
+<td>DCs carry the bit by default</td>
+<td>Add <code>!...:=8192</code></td>
+</tr>
+<tr>
+<td>Fewer objects than expected</td>
+<td>Truncated or partial log</td>
+<td>Re-collect; compare BofHound's object count</td>
+</tr>
+<tr>
+<td>BofHound graph looks thin</td>
+<td>Directory-only by design</td>
+<td>No sessions or local admin — those need host enumeration</td>
+</tr>
+</tbody>
+</table>
+<h3 id="116-the-high-value-findings">11.6 The high-value findings</h3>
 <p>Prioritise these over exhaustive enumeration:</p>
 <table>
 <thead>
@@ -3030,7 +3214,7 @@ setspn -T &lt;domain&gt; -Q */*
 </tr>
 </tbody>
 </table>
-<h3 id="116-opsec-for-ad-reconnaissance">11.6 OPSEC for AD reconnaissance</h3>
+<h3 id="117-opsec-for-ad-reconnaissance">11.7 OPSEC for AD reconnaissance</h3>
 <ul>
 <li><strong>LDAP is cheap; SMB sweeps are not.</strong> Prefer <code>DCOnly</code> collection and targeted LDAP filters.</li>
 <li><strong>Avoid <code>Session</code> collection</strong> unless you need it. It touches every computer.</li>
@@ -3039,7 +3223,7 @@ setspn -T &lt;domain&gt; -Q */*
 <li><strong><code>setspn -T</code> and <code>dsquery</code> are normal admin activity</strong>; a burst of <code>Find-LocalAdminAccess</code> from a user workstation is not.</li>
 <li><strong>Tier your queries:</strong> run the loud ones from Tier 2, then move only the results.</li>
 </ul>
-<h3 id="117-troubleshooting">11.7 Troubleshooting</h3>
+<h3 id="118-troubleshooting">11.8 Troubleshooting</h3>
 <table>
 <thead>
 <tr>
