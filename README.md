@@ -2,6 +2,8 @@
 
 Exam-day reference and mock walkthrough for the Zero Point Security **Certified Red Team Operator (Red Team Ops I)** practical exam.
 
+**Live site:** <https://nganweiloong.github.io/crto/> — [Playbook](https://nganweiloong.github.io/crto/CRTO-Playbook.html) · [Mock Exam](https://nganweiloong.github.io/crto/CRTO-Mock-Exam.html)
+
 ## Files
 
 | File | What it is |
