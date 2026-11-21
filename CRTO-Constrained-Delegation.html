@@ -204,8 +204,9 @@ input[type=text]{background:var(--bg);color:var(--fg);border:1px solid var(--lin
 .calc-out code{font-size:12px}
 
 /* ── Diagrams ─────────────────────────────────────────────────────────────── */
-figure{margin:18px 0}
+figure{margin:18px 0;overflow-x:auto}
 figure svg{max-width:100%;height:auto;display:block;overflow:visible}
+@media (max-width:720px){figure svg{min-width:660px}}
 figcaption{color:var(--muted);font-size:12.5px;margin-top:10px;max-width:74ch}
 svg text{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;fill:currentColor}
 svg .mut{fill:var(--muted)}
@@ -228,29 +229,31 @@ footer p{max-width:74ch}
   <div>
     <p class="eyebrow">CRTO I · Kerberos</p>
     <h1>Constrained Delegation, end to end</h1>
-    <p class="sub">Two requests, three conditions, one flag. This page builds the model, then lets you
-      <b>run the attack yourself</b> and watch the KDC allow or deny it.</p>
+    <p class="sub">First the problem it was built to solve and how the protocol meets it — then what that
+      same design hands an attacker. The simulator lets you <b>run it yourself</b> and watch the KDC allow
+      or deny.</p>
   </div>
   <button class="tbtn" id="theme" type="button" aria-label="Switch theme">Theme: auto</button>
 </header>
 
 <nav aria-label="Sections">
   <ul class="toc">
-    <li><a href="#idea">1 · The one idea</a></li>
-    <li><a href="#why">2 · Why delegation exists</a></li>
+    <li><a href="#idea">1 · A ticket is a claim</a></li>
+    <li><a href="#problem">2 · The problem it solves</a></li>
     <li><a href="#attrs">3 · The two attributes</a></li>
     <li><a href="#s4u">4 · S4U2self vs S4U2proxy</a></li>
-    <li><a href="#sim">5 · The simulator</a></li>
-    <li><a href="#cases">6 · The two attack cases</a></li>
-    <li><a href="#kdc">7 · You are the KDC</a></li>
-    <li><a href="#confusion">8 · Confusions</a></li>
-    <li><a href="#cheat">9 · Cheat sheet</a></li>
+    <li><a href="#abuse">5 · The attacker's view</a></li>
+    <li><a href="#sim">6 · The simulator</a></li>
+    <li><a href="#cases">7 · The two attack cases</a></li>
+    <li><a href="#kdc">8 · You are the KDC</a></li>
+    <li><a href="#confusion">9 · Confusions</a></li>
+    <li><a href="#cheat">10 · Cheat sheet</a></li>
   </ul>
 </nav>
 
 <!-- ══ 1 ═══════════════════════════════════════════════════════════════════ -->
 <section id="idea">
-  <h2><span class="num">01</span>The one idea</h2>
+  <h2><span class="num">01</span>A ticket is a claim</h2>
   <p class="lede">Every Kerberos service ticket is a claim, and it claims exactly two things: <b>who you get
     to be</b>, and <b>which service you get to be them to</b>. Nothing else. Get this and the rest follows.</p>
 
@@ -277,25 +280,29 @@ footer p{max-width:74ch}
   </div>
 
   <div class="note">
-    <span class="lbl">This is the whole game</span>
-    <p>To act as <code>dyork</code> against <code>lon-fs-1</code>, you need a ticket whose
+    <span class="lbl">The one constraint</span>
+    <p>To act as <code>dyork</code> against <code>lon-fs-1</code>, a ticket has to exist whose
       <code>ServiceName</code> is <code>cifs/lon-fs-1</code> <em>and</em> whose <code>UserName</code> is
-      <code>dyork</code>. You cannot edit the one you hold. You have to get the <strong>KDC</strong> to print
-      you a new one — and the KDC is not going to do that for just anyone.</p>
-    <p>Constrained delegation is the machinery that makes the KDC print it. Everything on this page is about
-      the three things the KDC checks before it does.</p>
+      <code>dyork</code>. Nobody — app or attacker — can hand-edit the ticket they already hold. A new one
+      has to come from the <strong>KDC</strong>, and the KDC does not mint tickets on request.</p>
+    <p>Constrained delegation is the machinery that convinces it to. Everything after this is about the
+      conditions it sets first.</p>
   </div>
 </section>
 
 <!-- ══ 2 ═══════════════════════════════════════════════════════════════════ -->
-<section id="why">
-  <h2><span class="num">02</span>Why delegation exists at all</h2>
-  <p class="lede">A normal Kerberos login is one hop. Delegation is what happens when a service needs to
-    make a <em>second</em> hop as the user — and discovers it has nothing to make it with.</p>
+<section id="problem">
+  <h2><span class="num">02</span>The problem it solves</h2>
+  <p class="lede">Constrained delegation is a product feature before it is an attack. A web app has to show a
+    user their own data, with that user's own permissions — and Kerberos gives a service exactly one hop.</p>
 
   <div class="card">
+    <p style="margin-top:0"><strong>The scenario.</strong> <code>dyork</code> signs in to the intranet app on
+      <code>LON-WS-1</code> and clicks <em>My Files</em>. The app is only a front-end; his files live on
+      <code>LON-FS-1</code>. To show him the files he is entitled to — and not everyone else's — the app has
+      to open <code>cifs/lon-fs-1</code> <em>as dyork</em>.</p>
     <figure>
-      <svg viewBox="0 0 860 300" role="img" aria-label="Client authenticates to LON-WS-1; LON-WS-1 then needs to reach CONT-SQL-1 as the same user, but cannot mint that ticket itself, so it must ask the KDC.">
+      <svg viewBox="0 0 860 300" role="img" aria-label="dyork signs in to the intranet app on LON-WS-1; to read his files the app must reach LON-FS-1 as dyork, but it holds no credential for him, so it must ask the KDC.">
         <defs>
           <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
             <polygon points="0,0 10,5 0,10" fill="currentColor"/>
@@ -306,16 +313,16 @@ footer p{max-width:74ch}
         </defs>
 
         <rect class="box" x="16" y="26" width="150" height="66" rx="10"/>
-        <text x="91" y="52" text-anchor="middle" font-size="13" font-weight="600">ATTACKER</text>
-        <text class="mut" x="91" y="70" text-anchor="middle" font-size="11">holds dyork's creds</text>
+        <text x="91" y="52" text-anchor="middle" font-size="13" font-weight="600">DYORK</text>
+        <text class="mut" x="91" y="70" text-anchor="middle" font-size="11">signed in, in a browser</text>
 
         <rect class="box hl" x="350" y="26" width="150" height="66" rx="10"/>
         <text x="425" y="52" text-anchor="middle" font-size="13" font-weight="600">LON-WS-1</text>
         <text class="mut" x="425" y="70" text-anchor="middle" font-size="11">HTTP/lon-ws-1</text>
 
         <rect class="box" x="694" y="26" width="150" height="66" rx="10"/>
-        <text x="769" y="52" text-anchor="middle" font-size="13" font-weight="600">CONT-SQL-1</text>
-        <text class="mut" x="769" y="70" text-anchor="middle" font-size="11">MSSQLSvc/cont-sql-1</text>
+        <text x="769" y="52" text-anchor="middle" font-size="13" font-weight="600">LON-FS-1</text>
+        <text class="mut" x="769" y="70" text-anchor="middle" font-size="11">cifs/lon-fs-1</text>
 
         <rect class="box" x="350" y="204" width="150" height="66" rx="10"/>
         <text x="425" y="230" text-anchor="middle" font-size="13" font-weight="600">LON-DC-1</text>
@@ -323,48 +330,66 @@ footer p{max-width:74ch}
 
         <!-- hop 1 -->
         <line x1="166" y1="59" x2="342" y2="59" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar)"/>
-        <text x="254" y="49" text-anchor="middle" font-size="11">① TGS for dyork</text>
+        <text x="254" y="49" text-anchor="middle" font-size="11">① dyork's ticket to this app</text>
 
         <!-- hop 2 (fails) -->
         <line x1="500" y1="59" x2="686" y2="59" stroke="#ff6b6b" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arBad)"/>
-        <text class="bad" x="593" y="49" text-anchor="middle" font-size="11">② needs a ticket for dyork</text>
-        <text class="bad" x="593" y="76" text-anchor="middle" font-size="11" font-weight="700">✗ has none</text>
+        <text class="bad" x="593" y="49" text-anchor="middle" font-size="11">② must act as dyork here</text>
+        <text class="bad" x="593" y="76" text-anchor="middle" font-size="11" font-weight="700">✗ has no credential for him</text>
 
         <!-- ask KDC -->
         <line x1="412" y1="94" x2="412" y2="198" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar)"/>
-        <text x="421" y="140" font-size="11">③ "print me one"</text>
+        <text x="421" y="140" font-size="11">③ "act as dyork for me"</text>
         <text class="mut" x="421" y="155" font-size="11">= delegation</text>
       </svg>
-      <figcaption>Hop ① works because the attacker holds a ticket the KDC already issued. Hop ② is the
-        problem: LON-WS-1 holds no credential for dyork that CONT-SQL-1 will accept. Only the KDC can
-        mint hop ②, so LON-WS-1 has to ask — that ask is delegation, and the rules around it are
-        constrained delegation.</figcaption>
+      <figcaption>Hop ① is ordinary Kerberos: the app receives a ticket that says "dyork, to this app".
+        Hop ② is the hard part — the file server wants a ticket that says "dyork, to the file server",
+        and the app has no way to make one. Only the KDC can mint it, so the app has to ask. That ask is
+        delegation, and the rules around it are constrained delegation.</figcaption>
     </figure>
   </div>
 
-  <h3>Why can't the service just do it?</h3>
-  <p>Three obvious ideas, all of which fail. Click one:</p>
+  <h3>Three ways a developer might have solved it</h3>
+  <p>All three were tried in the real world, and all three were rejected. Click one:</p>
   <div class="chips" id="whyBtns">
-    <button class="chip" type="button" data-why="local">Let the attacker just "run as" dyork</button>
-    <button class="chip" type="button" data-why="forge">Forge a ticket for cont-sql-1</button>
-    <button class="chip" type="button" data-why="tgt">Hand over dyork's TGT</button>
+    <button class="chip" type="button" data-why="local">Store every user's password</button>
+    <button class="chip" type="button" data-why="forge">Forge a ticket</button>
+    <button class="chip" type="button" data-why="tgt">Hand the app the user's TGT</button>
   </div>
   <div id="whyOut" class="calc-out" aria-live="polite"></div>
 
   <div class="note">
-    <span class="lbl">The mental model</span>
-    <p>Delegation is not "the service steals the user's password". It is <strong>the KDC agreeing to issue a
-      second ticket on the service's word</strong>. So the question is never "how do I impersonate?" — it is
-      <strong>"what does the KDC require before it will print the ticket?"</strong>. Constrained delegation
-      answers that with three conditions, and the next sections walk them one at a time.</p>
+    <span class="lbl">So the requirement was</span>
+    <p>Let one service act as a user, <strong>only toward the back-end services it is configured for</strong>,
+      <strong>without the user's password</strong> and <strong>without the user's TGT</strong>.</p>
+  </div>
+
+  <h3>Every requirement became a mechanism</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>The requirement</th><th>What implements it</th></tr></thead>
+      <tbody>
+        <tr><td>Act as the user without knowing their password</td><td><strong>S4U2self</strong> — the KDC issues a ticket in the user's name on the service's word</td></tr>
+        <tr><td>Reach only the services it is configured for</td><td><strong><code>msDS-AllowedToDelegateTo</code></strong> — a fixed list of SPNs</td></tr>
+        <tr><td>Keep the user's TGT out of the app's hands</td><td><strong>S4U2proxy</strong> — returns a ticket for one destination instead of the TGT</td></tr>
+        <tr><td>Only claim users who really used the app</td><td><strong>Protocol transition off</strong> — the default; see section 4</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note">
+    <span class="lbl">Why this order matters</span>
+    <p>Read that table top to bottom and you have the design. Read it bottom to top and you have the attack
+      surface: every one of those four controls is a rule an attacker has to satisfy or work around.
+      Section 5 switches to that view.</p>
   </div>
 </section>
 
 <!-- ══ 3 ═══════════════════════════════════════════════════════════════════ -->
 <section id="attrs">
   <h2><span class="num">03</span>The two attributes — two different jobs</h2>
-  <p class="lede">Constrained delegation is configured in two places, and people mix them up constantly.
-    One is a <b>list of destinations</b>. The other is a <b>permission to invent identities</b>.</p>
+  <p class="lede">Two settings carry the requirement from section 2, and people mix them up constantly.
+    One is a <b>list of destinations</b>. The other is a <b>permission to vouch for identities</b>.</p>
 
   <div class="grid2">
     <div class="card">
@@ -536,11 +561,62 @@ userAccountControl: 16781312</code></pre>
       <code>Rubeus asktgt /user:LON-WS-1$ /rc4:&lt;hash&gt;</code>. No host access, no S4U. This is the step
       the write-ups skip and the exam does not.</p>
   </div>
+
+  <h3>The same two requests in normal operation</h3>
+  <p>This is the feature working as designed, and it is where the two flags come from:</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>The user signed in with</th><th>What the app already holds</th><th>What it does</th></tr></thead>
+      <tbody>
+        <tr><td>Kerberos</td><td>a forwardable <code>HTTP/lon-ws-1</code> ticket for the user</td><td>Goes straight to S4U2proxy — no S4U2self needed</td></tr>
+        <tr><td>NTLM or another non-Kerberos protocol</td><td>nothing the file server will accept</td><td>Uses S4U2self to manufacture evidence, which only yields a forwardable ticket if protocol transition is on</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <p>"Protocol transition" means exactly that: transitioning a non-Kerberos login into a Kerberos ticket. It is
+    off by default because switching it on lets a service vouch for users the KDC never saw authenticate.</p>
 </section>
 
 <!-- ══ 5 ═══════════════════════════════════════════════════════════════════ -->
+<section id="abuse">
+  <h2><span class="num">05</span>Now the attacker's view</h2>
+  <p class="lede">Nothing in the protocol checks intent. The KDC cannot tell the real intranet app from
+    someone holding that app's credentials, so it applies the same four rules either way.</p>
+
+  <p>Get onto <code>LON-WS-1</code>, dump its machine account hash, and you can speak as that service. From
+    then on your S4U requests are indistinguishable from the app doing its job — except that the user name
+    in them is the one you chose.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">What that hands you</h3>
+      <ul style="margin-bottom:0">
+        <li>Service tickets <strong>in other users' names</strong>, without cracking a password.</li>
+        <li>No need to read LSASS on the target — the KDC mints the ticket for you.</li>
+        <li>With protocol transition on, any user in the domain. With it off, any user who left a real ticket with this service.</li>
+      </ul>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">What still stops you</h3>
+      <ul style="margin-bottom:0">
+        <li>The target SPN must be on <code>msDS-AllowedToDelegateTo</code>.</li>
+        <li>The evidence ticket must be forwardable.</li>
+        <li>It must be addressed to the service making the request.</li>
+        <li>The request is logged: 4769 on the DC with <em>Transited Services</em> populated.</li>
+      </ul>
+    </div>
+  </div>
+
+  <div class="note">
+    <span class="lbl">From here on</span>
+    <p>Section 6 lets you run it: four steps, a toggle for each control above, and the KDC's verdict when one
+      fails. Section 7 is the same thing in Rubeus syntax.</p>
+  </div>
+</section>
+
+<!-- ══ 6 ═══════════════════════════════════════════════════════════════════ -->
 <section id="sim">
-  <h2><span class="num">05</span>The simulator</h2>
+  <h2><span class="num">06</span>The simulator</h2>
   <p class="lede">You are on <code>LON-WS-1</code>. Run the four steps, change the toggles, and read the
     verdict panel every time the KDC refuses. Start with a scenario, then break it yourself.</p>
 
@@ -681,7 +757,7 @@ userAccountControl: 16781312</code></pre>
 
 <!-- ══ 6 ═══════════════════════════════════════════════════════════════════ -->
 <section id="cases">
-  <h2><span class="num">06</span>The two attack cases</h2>
+  <h2><span class="num">07</span>The two attack cases</h2>
   <p class="lede">Same goal, different requirement. One UAC bit decides whether you can name your victim or
     must supply a real ticket — and that bit changes exactly one Rubeus parameter.</p>
 
@@ -750,14 +826,14 @@ userAccountControl: 16781312</code></pre>
 
 <!-- ══ 7 ═══════════════════════════════════════════════════════════════════ -->
 <section id="kdc">
-  <h2><span class="num">07</span>You are the KDC</h2>
+  <h2><span class="num">08</span>You are the KDC</h2>
   <p class="lede">Six requests. Decide allow or deny, using only the three rules. No hints until you commit.</p>
   <div id="quiz"></div>
 </section>
 
 <!-- ══ 8 ═══════════════════════════════════════════════════════════════════ -->
 <section id="confusion">
-  <h2><span class="num">08</span>The confusions that cost marks</h2>
+  <h2><span class="num">09</span>The confusions that cost marks</h2>
   <div class="tbl-wrap">
     <table>
       <thead><tr><th>Question</th><th>Answer</th></tr></thead>
@@ -776,7 +852,7 @@ userAccountControl: 16781312</code></pre>
 
 <!-- ══ 9 ═══════════════════════════════════════════════════════════════════ -->
 <section id="cheat">
-  <h2><span class="num">09</span>One-screen cheat sheet</h2>
+  <h2><span class="num">10</span>One-screen cheat sheet</h2>
 
   <div class="card">
     <h3 style="margin-top:0">The three conditions</h3>
@@ -864,9 +940,9 @@ ls \\lon-fs-1\c$</code></pre>
 
   /* ── 2 · why the obvious approaches fail ───────────────────────────────── */
   var WHY={
-    local: '<strong>"Run as" dies at the next hop.</strong> You can impersonate dyork <em>on LON-WS-1</em> with <code>make_token</code> or a stolen token, but that only convinces LON-WS-1. CONT-SQL-1 does not accept "trust me, I am dyork" from another machine — it accepts a Kerberos service ticket or nothing. Your local impersonation has no ticket to offer.',
-    forge: '<strong>You cannot mint a ticket.</strong> A service ticket is encrypted with the <em>target service account\'s</em> key. Forging <code>cifs/lon-fs-1</code> for dyork needs lon-fs-1\'s password hash; a golden ticket needs <code>krbtgt</code>. You hold neither. That is why the attacker has to make the KDC print it.',
-    tgt: '<strong>That is unconstrained delegation.</strong> Handing over dyork\'s TGT works — it is exactly what the legacy <code>TRUSTED_FOR_DELEGATION</code> flag (524288) permits. It is also a disaster: a TGT can be traded for a ticket to <em>any</em> service. Constrained delegation exists so the KDC can issue one ticket to one named destination instead, without ever handing over the TGT.'
+    local: "It does not scale and it cannot be secured. The app would have to hold every user's password, and one compromise of the app would leak the domain. It also lets the app authenticate as the user to <em>everything</em>, with no limit on where it can go — the opposite of what delegation was supposed to be.",
+    forge: '<strong>Impossible by design.</strong> A service ticket is encrypted with the <em>target service account\'s</em> key. Forging <code>cifs/lon-fs-1</code> for dyork needs lon-fs-1\'s password hash; a golden ticket needs <code>krbtgt</code>. You hold neither. That is why the app has to ask the KDC for one instead.',
+    tgt: '<strong>That is what unconstrained delegation did.</strong> Handing over dyork\'s TGT works — it is exactly what the legacy <code>TRUSTED_FOR_DELEGATION</code> flag (524288) permits. It is also why unconstrained delegation is considered dangerous: a TGT can be traded for a ticket to <em>any</em> service. Constrained delegation exists so the KDC can issue one ticket to one named destination instead, without ever handing over the TGT.'
   };
   var whyBtns=$('#whyBtns'), whyOut=$('#whyOut');
   if(whyBtns) whyBtns.addEventListener('click',function(e){

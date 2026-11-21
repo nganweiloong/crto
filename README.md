@@ -2,7 +2,7 @@
 
 Exam-day reference and mock walkthrough for the Zero Point Security **Certified Red Team Operator (Red Team Ops I)** practical exam.
 
-**Live site:** <https://nganweiloong.github.io/crto/> — [Playbook](https://nganweiloong.github.io/crto/CRTO-Playbook.html) · [Mock Exam](https://nganweiloong.github.io/crto/CRTO-Mock-Exam.html)
+**Live site:** <https://nganweiloong.github.io/crto/> — [Playbook](https://nganweiloong.github.io/crto/CRTO-Playbook.html) · [Mock Exam](https://nganweiloong.github.io/crto/CRTO-Mock-Exam.html) · [Constrained Delegation](https://nganweiloong.github.io/crto/CRTO-Constrained-Delegation.html)
 
 ## Files
 
@@ -12,6 +12,7 @@ Exam-day reference and mock walkthrough for the Zero Point Security **Certified 
 | `CRTO-Playbook.pdf` | 95-page print version (A4) — cover page, expanded sections, page-break rules. |
 | `CRTO-Playbook.md` | Editable source; grep it, add your own notes and action log. |
 | **`CRTO-Mock-Exam.html`** | Interactive end-to-end walkthrough with decision points and hidden answers. |
+| **`CRTO-Constrained-Delegation.html`** | Interactive explainer: the problem delegation solves, how S4U2self/S4U2proxy meet it, then a simulator that runs the attack and names the KDC rule that failed. |
 | `CRTO-Mock-Exam.pdf` | 12-page print version of the walkthrough. |
 | `CRTO-Mock-Exam.md` | Editable source of the walkthrough. |
 | `src/` | Playbook section sources (one file per phase/appendix). |
